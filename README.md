@@ -1,6 +1,6 @@
 # About
 
-This data was derived from the [usda national nutrient database standard reference legacy release](https://data.nal.usda.gov/dataset/usda-national-nutrient-database-standard-reference-legacy-release).
+The data used in this tool was derived from the [usda national nutrient database standard reference legacy release](https://data.nal.usda.gov/dataset/usda-national-nutrient-database-standard-reference-legacy-release).
 
 # Setup
 
