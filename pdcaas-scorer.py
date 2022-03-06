@@ -15,7 +15,11 @@ ESSENTIAL_AMINO_ACIDS_REGEX = '|'.join(ESSENTIAL_AMINO_ACIDS)
 def format_ds(df):
     return df.loc[:, USEFUL_COLUMNS]
 
-@click.command()
+@click.group()
+def cli():
+    pass
+
+@cli.command()
 @click.option('--food-name', prompt='The name of the food to search for')
 def search(food_name):
     terms = food_name.strip().split()
@@ -35,11 +39,13 @@ def search(food_name):
         ]
 
     amino_acid_info = filtered_data.loc[filtered_data[NUTRIENT_DESC_COLUMN].str.contains(ESSENTIAL_AMINO_ACIDS_REGEX, case=False)]
-    print(format_ds(amino_acid_info))
+    click.echo(format_ds(amino_acid_info))
+
+cli.add_command(search)
 
 if __name__ == '__main__':
 
     global NUTRIENT_DATASET
     NUTRIENT_DATASET = pd.read_csv(f'{NUTRIENT_CSV_DIR}/csv/merged_data.csv', low_memory=False)
 
-    search()
+    cli()
