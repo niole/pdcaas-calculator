@@ -1,0 +1,6 @@
+Alanine
+Aspartic acid
+Asparagine
+Glutamic acid
+Serine
+Selenocysteine

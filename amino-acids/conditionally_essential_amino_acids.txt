@@ -1,0 +1,6 @@
+Arginine
+Cysteine
+Glutamine
+Glycine
+Proline
+Tyrosine
