@@ -7,22 +7,26 @@ This repo also contains an [explanatory pdf](Calculating-PDCAAS-for-Percent-Prot
 # Setup
 
 ```sh
-pipenv install
+python3 -m venv "venv"
+. venv/bin/activate
+pip install -r requirements.txt
 
-export NUTRIENT_CSV_DIR=/tmp
-unzip merged_csv -d $NUTRIENT_CSV_DIR
+# unzip the database
+unzip fooddb.zip
 ```
 
 # API Examples
 
-## Help
 
 ```sh
-pipenv run python search.py --help
+python -m cli
 ```
 
-## Get amino acid information for a food
+# Munge data
 
 ```sh
-pipenv run python search.py --food-name "soft tofu"
+./create_all_csvs.sh
 ```
+
+# Sources
+If you want to work with the csv data, unzip sources.zip into the sources/ directory
