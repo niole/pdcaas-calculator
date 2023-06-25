@@ -12,3 +12,8 @@ what stats?
 - percent of protein that was digestible and balanced
 - report of what amino acids they were deficient in
 - recommendation on what foods to eat
+
+# feedback
+- no entry for nutritional yeast in food_info_types
+- a lot of things don't have weight entries and it doesn't fail
+- chat gpt is bad at making up recipes

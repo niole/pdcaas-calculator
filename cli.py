@@ -2,8 +2,10 @@ from sentence_transformers import SentenceTransformer
 from sqlalchemy import create_engine, text, select
 from sqlalchemy.orm import Session
 import pinecone
-from test_recipes.veganmacandcheese import recipe as veganmacandcheese
+from pprint import pprint
 
+from test_recipes.veganmacandcheese import recipe as veganmacandcheese
+from test_recipes.cup_of_soymilk import recipe as soymilk_recipe
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 pinecone.init(api_key="fc70e073-5679-4bcf-a009-38f0e42e09e2", environment="northamerica-northeast1-gcp")
@@ -15,6 +17,7 @@ engine = create_engine(
 )
 
 essential_amino_acids = ["Tryptophan","Threonine","Isoleucine","Leucine","Lysine","Methionine","Phenylalanine","Valine","Histidine"]
+EAAS_QUERY_STRING = ','.join(["'" + a + "'" for a in essential_amino_acids])
 EAA_PROPORTIONS = {
     "Tryptophan": 7/1000,
     "Threonine": 27/1000,
@@ -47,12 +50,15 @@ def set_td(ingredient, td_score):
     ingredient['td'] = td_score
 
 def create_initial_ingredient(food_query, name, total_protein, total_g_ing, aa_rows):
-    ingredient = create_ingredient(food_query, name, total_protein)
+    aas = []
 
     for f in aa_rows:
-        ingredient['aas'].append(
+        aas.append(
             create_aa(f.NutrDesc, f.Nutr_Val, total_g_ing)
         )
+
+    ingredient = create_ingredient(food_query, name, total_protein, 1, aas)
+
     return ingredient
 
 def get_limiting_aa(ingredient):
@@ -98,7 +104,11 @@ def calculated_percent_digestible_protein(ingredients):
         total_achievable_protein_g += total_achievable_protein_food_g
         protein_g += ingredient['total_protein_g']
 
-    return total_achievable_protein_g / protein_g
+    return {
+        "percent_complete_digestible_protein": total_achievable_protein_g/protein_g,
+        "total_complete_digestible_protein_g": total_achievable_protein_g,
+        "total_protein_g": protein_g
+    }
 
 def find_limit_vector_query(query, limit, namespace):
     matches = index.query(
@@ -123,10 +133,14 @@ def find_one_vector_query(query, namespace):
 
     return matches[0]
 
-def get_matching_food_item(query):
-    match = find_one_vector_query(query, 'info')
+def get_matching_food_items(query):
+    ms = list(find_limit_vector_query(query, 20, 'info'))
+    print()
+    print(query)
+    print([(m['id'], m['score']) for m in ms])
+    print()
 
-    return match['id']
+    return [m['id'] for m in ms if m['score'] >= 0.6]
 
 def get_measure_conversion(requested_units, units):
     """
@@ -168,30 +182,36 @@ def cli(conn):
     find closest match for ingredient in food_info or td_types: put all food names into a collection in a vector db and all td_types in their own collection
     and do a search
     """
-    recipe = veganmacandcheese
+    recipe = veganmacandcheese #soymilk_recipe
     ingredients = []
     for ing in recipe['ingredients']:
         food_query = ing['name']
         measure_units_query = ing['units']
         measure_amount_query = ing['total']
 
-        ingredient = None
-        measure_units = measure_units_query
-        gram_weight = None
 
-        NDB_No = get_matching_food_item(food_query)
-
-        if NDB_No is None:
+        # TODO sometimes a match doesn't have enough amino acid data
+        # maybe the next match would
+        NDB_Nos = get_matching_food_items(food_query)
+        if len(NDB_Nos) == 0:
             print(f"Couldn't find a matching food item for query {food_query}")
             print()
             continue
 
-        result = conn.execute(
-            text("select * from food_info_types where NDB_No = :id and NutrDesc = 'Protein' limit 1"),
-            {'id': NDB_No}
-        )
+        for NDB_No in NDB_Nos:
+            ingredient = None
+            measure_units = measure_units_query
+            gram_weight = None
 
-        for row in result:
+            result = list(conn.execute(
+                text("select * from food_info_types where NDB_No = :id and NutrDesc = 'Protein' limit 1"),
+                {'id': NDB_No}
+            ))
+            if len(result) == 0:
+                print(f"Couldn't find food match for {NDB_No}")
+                continue
+
+            row = result[0]
             id = row.NDB_No
             protein_per_100g = row.Nutr_Val
 
@@ -200,13 +220,10 @@ def cli(conn):
                 print()
                 continue
 
-            aas = ','.join(["'" + a + "'" for a in essential_amino_acids])
-
-
-            food = conn.execute(
-                    text("select distinct * from food_info_types where NDB_No = :id and NutrDesc in ("+aas+")"),
+            food = list(conn.execute(
+                    text("select distinct * from food_info_types where NDB_No = :id and NutrDesc in ("+EAAS_QUERY_STRING+")"),
                     {'id': id }
-            )
+            ))
 
             measure_result = conn.execute(
                 text('select * from weight where NDB_No = :id'),
@@ -222,12 +239,10 @@ def cli(conn):
                     break
 
             if gram_weight is None:
+                # TODO this shouldn't mess up the nutrient loop
+                # if there's no weight result, maybe the amino acid result is still good, maybe we can combine the two
                 print(f"Insufficient weight data. Can't convert {measure_amount_query} {measure_units_query} of {food_query} to grams.")
                 continue
-
-            if gram_weight == None:
-                raise Exception('Couldnt compute gram weight of ingredient')
-
 
             # calculate total protein grams in queried amount of food
             total_protein_ing = gram_weight*protein_per_100g/100
@@ -237,7 +252,10 @@ def cli(conn):
             ingredient['unit'] = measure_units_query
 
             if len(ingredient['aas']) < 9:
-                raise Exception("Not enough amino acid data")
+                # TODO if there's not enough amino acid data, then maybe we can pick the next best option if it still
+                # is a good match
+                print("Not enough amino acid data for ingredient match. Trying next match.")
+                continue
             else:
                 td_result = find_one_vector_query(food_query, 'td')
 
@@ -249,10 +267,13 @@ def cli(conn):
                     for (_, score, _) in score_result:
                         set_td(ingredient, score)
 
-            ingredients.append(ingredient)
+            if ingredient is not None:
+                ingredients.append(ingredient)
+                break
 
     percent_digestible_complete_protein = calculated_percent_digestible_protein(ingredients)
-    print(percent_digestible_complete_protein)
+    print("Total Protein Stats")
+    pprint(percent_digestible_complete_protein)
 
 with Session(engine) as conn:
     cli(conn)
