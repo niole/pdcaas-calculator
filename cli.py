@@ -181,7 +181,7 @@ def cli(conn):
     find closest match for ingredient in food_info or td_types: put all food names into a collection in a vector db and all td_types in their own collection
     and do a search
     """
-    recipe = soymilk_recipe
+    recipe = veganmacandcheese #soymilk_recipe
     ingredients = []
     for ing in recipe['ingredients']:
         food_query = ing['name']

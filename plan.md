@@ -1,11 +1,14 @@
 # UX
 
-user provides information about meals and then we give them stats.
+User says "give me this kind of meal" and we generate a recipe that fits that description and then we tell you the protein content.
+
+- user input: Make me a balanced <kind> meal for <meal-time>. My bodyweight in kg is <count>.
+- Text input data goes to chatgpt, which is prompted to generate meal names and then from the meal name, a couple recipes are generated
+- Each recipe is processed (maybe the recipe scorer is an aws function, so we can parallelize) and then the recipes are returned along with their protein stats.
+
 
 how to provide meal info?
-- recipes
-- manual input
-- text description of meal and then we use an LLM to make up a recipe for them and do analysis on that recipe *
+- user says "give me a meal (plan)" and then we give you one with good amino acid balance
 
 what stats?
 - total grams of digestible balanced protein
