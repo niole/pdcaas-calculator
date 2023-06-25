@@ -4,8 +4,8 @@ import React from 'react';
 const inputClasses = "outline rounded outline-1";
 
 //- user input: Make me a balanced <kind> meal for <meal-time>. My bodyweight in kg is <count>.
-//- Text input data goes to chatgpt, which is prompted to generate meal names and then from the meal name, a couple recipes are generated
-//- Each recipe is processed (maybe the recipe scorer is an aws function, so we can parallelize) and then the recipes are returned along with their protein stats.
+// - on submit, get meal names from chatgpt, then send each mealname to a aws function or a worker thread, which generates the recipe for each mealname
+// - when the recipes come back, give them to another lambda, which does the scoring, this means I need to deploy the sqlite3 db OR I can rewrite the python script in typescript and call it from a webworker
 
 const MealPreferenceUI = props => {
   return (

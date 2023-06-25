@@ -87,6 +87,7 @@ protein that is digestible and balanced protein from the essential amino acids.
 def calculated_percent_digestible_protein(ingredients):
     total_achievable_protein_g = 0
     protein_g = 0
+    ingredient_summaries = []
 
     if len(ingredients) == 0:
         return 0
@@ -99,10 +100,13 @@ def calculated_percent_digestible_protein(ingredients):
         total_limiting_aa_g = limiting_aa_details['total_protein_g']
         total_achievable_protein_food_g = ingredient['td'] * min(total_limiting_aa_g / EAA_PROPORTIONS[limiting_aa], ingredient['total_protein_g'])
 
-        print(f"{ingredient['name']}")
-        print(f"Limiting amino acid: {limiting_aa}")
-        print(f"Total achievable protein: {total_achievable_protein_food_g}, out of total protein: {ingredient['total_protein_g']}, in {ingredient['amount']} {ingredient['unit']}")
-        print()
+        ingredient_summaries.append({
+            'name': ingredient['name'],
+            'limiting_aa_details': limiting_aa_details,
+            'total_protein_g': ingredient['total_protein_g'],
+            'total_balanced_protein_g': total_achievable_protein_food_g,
+            'aas': ingredient['aas'],
+        })
 
         total_achievable_protein_g += total_achievable_protein_food_g
         protein_g += ingredient['total_protein_g']
@@ -110,7 +114,8 @@ def calculated_percent_digestible_protein(ingredients):
     return {
         "percent_complete_digestible_protein": total_achievable_protein_g/protein_g,
         "total_complete_digestible_protein_g": total_achievable_protein_g,
-        "total_protein_g": protein_g
+        "total_protein_g": protein_g,
+        "ingredient_summaries": ingredient_summaries,
     }
 
 def find_limit_vector_query(query, limit, namespace):
@@ -172,7 +177,7 @@ pre-generate a bunch of recipes and their amino acid balances
 Let the user also put in their own meal names. We can then recommend snacks to round out their amino acid balance.
 User can scale the recipes according to their calorie needs through a UI and then we can give better info about total digestible balanced protein. TODO Do we have calorie data?
 """
-def cli(conn):
+def cli(conn, recipe):
     """
     for each ingredient in a recipe, find the food entry that best matches it, the td_types entry that best matches it,
     and compute the gram weight
@@ -181,7 +186,6 @@ def cli(conn):
     find closest match for ingredient in food_info or td_types: put all food names into a collection in a vector db and all td_types in their own collection
     and do a search
     """
-    recipe = veganmacandcheese #soymilk_recipe
     ingredients = []
     for ing in recipe['ingredients']:
         food_query = ing['name']
@@ -273,8 +277,18 @@ def cli(conn):
                 break
 
     percent_digestible_complete_protein = calculated_percent_digestible_protein(ingredients)
-    print("Total Protein Stats")
-    pprint(percent_digestible_complete_protein)
+    return percent_digestible_complete_protein
 
-with Session(engine) as conn:
-    cli(conn)
+def lambda_handler(event, context):
+    with Session(engine) as conn:
+        recipe = event['recipe']
+        result = cli(conn, recipe)
+        return { 'result': result }
+
+if __name__ == "__main__":
+    with Session(engine) as conn:
+        recipe = veganmacandcheese #soymilk_recipe
+        percent_digestible_complete_protein = cli(conn, recipe)
+        print("Total Protein Stats")
+        pprint(percent_digestible_complete_protein)
+
