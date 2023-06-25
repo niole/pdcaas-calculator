@@ -7,6 +7,7 @@ This repo also contains an [explanatory pdf](Calculating-PDCAAS-for-Percent-Prot
 # Setup
 
 ```sh
+cd cli
 python3 -m venv "venv"
 . venv/bin/activate
 pip install -r requirements.txt
@@ -17,9 +18,8 @@ unzip fooddb.zip
 
 # API Examples
 
-
 ```sh
-python -m cli
+python cli.py
 ```
 
 # Munge data
