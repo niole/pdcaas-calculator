@@ -1,14 +1,17 @@
+import os
 from sentence_transformers import SentenceTransformer
 from sqlalchemy import create_engine, text, select
 from sqlalchemy.orm import Session
 import pinecone
 from pprint import pprint
+from dotenv import load_dotenv
+load_dotenv()
 
 from test_recipes.veganmacandcheese import recipe as veganmacandcheese
 from test_recipes.cup_of_soymilk import recipe as soymilk_recipe
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
-pinecone.init(api_key="fc70e073-5679-4bcf-a009-38f0e42e09e2", environment="northamerica-northeast1-gcp")
+pinecone.init(api_key=os.environ['PINECONE_API_KEY'], environment="northamerica-northeast1-gcp")
 index = pinecone.Index("food")
 
 engine = create_engine(

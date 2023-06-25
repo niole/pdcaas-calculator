@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 model = SentenceTransformer('all-MiniLM-L6-v2')
 db = sqlite3.connect('food.db')
 
-pinecone.init(api_key="fc70e073-5679-4bcf-a009-38f0e42e09e2", environment="northamerica-northeast1-gcp")
+pinecone.init(api_key=os.environ['PINECONE_API_KEY'], environment="northamerica-northeast1-gcp")
 
 index = pinecone.Index("food")
 
