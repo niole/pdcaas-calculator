@@ -15,5 +15,6 @@ what stats?
 
 # feedback
 - no entry for nutritional yeast in food_info_types
-- a lot of things don't have weight entries and it doesn't fail
+- no entry for cashew milk
+- we're missing some food items that would be good to have
 - chat gpt is bad at making up recipes

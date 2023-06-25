@@ -3,7 +3,7 @@ recipe = {
 "ingredients": [
 {
 "units": "cup",
-"name": "soymilk",
+"name": "soy milk",
 "total": 1
 },
 ],

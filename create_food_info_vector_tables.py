@@ -1,6 +1,9 @@
+import os
 import pinecone
 import sqlite3
 from sentence_transformers import SentenceTransformer
+from dotenv import load_dotenv
+load_dotenv()
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 db = sqlite3.connect('food.db')

@@ -138,10 +138,6 @@ def find_one_vector_query(query, namespace):
 
 def get_matching_food_items(query):
     ms = list(find_limit_vector_query(query, 20, 'info'))
-    print()
-    print(query)
-    print([(m['id'], m['score']) for m in ms])
-    print()
 
     return [m['id'] for m in ms if m['score'] >= 0.6]
 
@@ -185,7 +181,7 @@ def cli(conn):
     find closest match for ingredient in food_info or td_types: put all food names into a collection in a vector db and all td_types in their own collection
     and do a search
     """
-    recipe = veganmacandcheese #soymilk_recipe
+    recipe = soymilk_recipe
     ingredients = []
     for ing in recipe['ingredients']:
         food_query = ing['name']
@@ -202,6 +198,8 @@ def cli(conn):
             continue
 
         for NDB_No in NDB_Nos:
+            print()
+            print(f"Trying NDB_No {NDB_No}")
             ingredient = None
             measure_units = measure_units_query
             gram_weight = None
