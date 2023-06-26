@@ -26,14 +26,18 @@ export default function Home() {
   const [mealTime, setMealTime] = React.useState<string | undefined>();
   const [weight, setWeight] = React.useState<number | undefined>();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const fields = [["meal preference", mealPreference], ["meal time", mealTime], ["weight", weight]];
     const emptyFields = fields.filter(([name, value]) => !value);
     if (emptyFields.length > 0) {
         const fieldNames = emptyFields.map(f => f[0]).join(", ");
         alert(`Please fill in the ${fieldNames} field(s).`);
     } else {
-      // TODO submit
+      // TODO generate some meal names, then generate recipes for each meal and then return the one with the highest protein content
+      fetch('http://localhost:3000/api/meal', { method: 'POST', body: JSON.stringify({mealtime: mealTime, preference: mealPreference, mealcount: 1}) })
+      .then((x: any) => x.text())
+      .then((x: string) => console.log(x))
+      .catch((e: any) => console.error(e));
     }
 
   };
