@@ -1,7 +1,6 @@
 import os
+import json
 from sentence_transformers import SentenceTransformer
-from sqlalchemy import create_engine, text, select
-from sqlalchemy.orm import Session
 import pinecone
 from pprint import pprint
 from dotenv import load_dotenv
@@ -9,15 +8,9 @@ load_dotenv()
 
 from test_recipes.veganmacandcheese import recipe as veganmacandcheese
 from test_recipes.cup_of_soymilk import recipe as soymilk_recipe
+from pinecone_client import find_limit_vector_query, find_one_vector_query
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
-pinecone.init(api_key=os.environ['PINECONE_API_KEY'], environment="northamerica-northeast1-gcp")
-index = pinecone.Index("food")
-
-engine = create_engine(
-    "sqlite:///food.db",
-    #echo=True,
-)
 
 essential_amino_acids = ["Tryptophan","Threonine","Isoleucine","Leucine","Lysine","Methionine","Phenylalanine","Valine","Histidine"]
 EAAS_QUERY_STRING = ','.join(["'" + a + "'" for a in essential_amino_acids])
@@ -33,6 +26,11 @@ EAA_PROPORTIONS = {
     "Histidine": 18/1000
 }
 
+def create_aa(name, total_per100g, total_g_ing):
+    return {
+        'name': name,
+        'total_protein_g': total_g_ing*total_per100g/100
+    }
 def create_ingredient(food_query, name, total_protein, td = 1, aas = []):
     return {
         'name': name,
@@ -42,25 +40,18 @@ def create_ingredient(food_query, name, total_protein, td = 1, aas = []):
         'td': td
     }
 
-def create_aa(name, total_per100g, total_g_ing):
-    return {
-        'name': name,
-        'total_protein_g': total_g_ing*total_per100g/100
-    }
-
 def set_td(ingredient, td_score):
     # set TD score for ingredient
     ingredient['td'] = td_score
 
-def create_initial_ingredient(food_query, name, total_protein, total_g_ing, aa_rows):
-    aas = []
+def create_initial_ingredient(food_query, name, total_protein, total_g_ing, aas):
+    aas_final = []
 
-    for f in aa_rows:
-        aas.append(
-            create_aa(f.NutrDesc, f.Nutr_Val, total_g_ing)
+    for f in aas:
+        aas_final.append(
+            create_aa(f['name'], f['per100g'], total_g_ing)
         )
-
-    ingredient = create_ingredient(food_query, name, total_protein, 1, aas)
+    ingredient = create_ingredient(food_query, name, total_protein, 1, aas_final)
 
     return ingredient
 
@@ -71,14 +62,21 @@ def get_limiting_aa(ingredient):
 
     total_protein_g = ingredient['total_protein_g']
     percent_expected = []
+    print(ingredient['name'])
+    print(ingredient['aas'])
     for aa in ingredient['aas']:
         # the expected proportion of the ingredients protein in order for it to be complete
         expected = EAA_PROPORTIONS[aa['name']]*ingredient['total_protein_g']
         actual = aa['total_protein_g']
-        percent_expected.append((aa['name'], actual/expected))
+        if actual > 0 and expected > 0:
+            percent_expected.append((aa['name'], actual/expected))
+        else:
+            percent_expected.append((aa['name'], 0))
 
-    limiting_aa = min(percent_expected, key = lambda k: k[1])[0]
-    return next((a for a in ingredient['aas'] if a['name'] == limiting_aa), None)
+    if len(percent_expected) > 0:
+        limiting_aa = min(percent_expected, key = lambda k: k[1])[0]
+        return next((a for a in ingredient['aas'] if a['name'] == limiting_aa), None)
+    return None
 
 """
 This calculates the protein balance for all ingredients and returns the percent of consumed
@@ -94,12 +92,16 @@ def calculated_percent_digestible_protein(ingredients):
 
     for ingredient in ingredients:
         limiting_aa_details = get_limiting_aa(ingredient)
-        limiting_aa = limiting_aa_details['name']
+        limiting_aa = None
+        total_limiting_aa_g = 0
+        total_achievable_protein_food_g = 0
 
-        # calculate the total digestible complete protein by dividing the limiting aa by its proportion
-        total_limiting_aa_g = limiting_aa_details['total_protein_g']
-        total_achievable_protein_food_g = ingredient['td'] * min(total_limiting_aa_g / EAA_PROPORTIONS[limiting_aa], ingredient['total_protein_g'])
+        if limiting_aa_details:
+            limiting_aa = limiting_aa_details['name']
 
+            # calculate the total digestible complete protein by dividing the limiting aa by its proportion
+            total_limiting_aa_g = limiting_aa_details['total_protein_g']
+            total_achievable_protein_food_g = ingredient['td'] * min(total_limiting_aa_g / EAA_PROPORTIONS[limiting_aa], ingredient['total_protein_g'])
         ingredient_summaries.append({
             'name': ingredient['name'],
             'limiting_aa_details': limiting_aa_details,
@@ -118,33 +120,11 @@ def calculated_percent_digestible_protein(ingredients):
         "ingredient_summaries": ingredient_summaries,
     }
 
-def find_limit_vector_query(query, limit, namespace):
-    matches = index.query(
-        vector=model.encode(query).tolist(),
-        top_k=limit,
-        include_values=True,
-        namespace=namespace
-    )['matches']
-
-    return matches
-
-def find_one_vector_query(query, namespace):
-    matches = index.query(
-        vector=model.encode(query).tolist(),
-        top_k=1,
-        include_values=True,
-        namespace=namespace
-    )['matches']
-
-    if len(matches) == 0:
-        return None
-
-    return matches[0]
 
 def get_matching_food_items(query):
     ms = list(find_limit_vector_query(query, 20, 'info'))
 
-    return [m['id'] for m in ms if m['score'] >= 0.6]
+    return [m for m in ms if m['score'] >= 0.6]
 
 def get_measure_conversion(requested_units, units):
     """
@@ -177,7 +157,7 @@ pre-generate a bunch of recipes and their amino acid balances
 Let the user also put in their own meal names. We can then recommend snacks to round out their amino acid balance.
 User can scale the recipes according to their calorie needs through a UI and then we can give better info about total digestible balanced protein. TODO Do we have calorie data?
 """
-def cli(conn, recipe):
+def cli(recipe):
     """
     for each ingredient in a recipe, find the food entry that best matches it, the td_types entry that best matches it,
     and compute the gram weight
@@ -193,84 +173,50 @@ def cli(conn, recipe):
         measure_amount_query = ing['total']
 
 
-        # TODO sometimes a match doesn't have enough amino acid data
-        # maybe the next match would
-        NDB_Nos = get_matching_food_items(food_query)
-        if len(NDB_Nos) == 0:
+        # each food item has it's name, id, per 100g stats for protein and amino acids, and the td score
+        food_items = get_matching_food_items(food_query)
+
+        if len(food_items) == 0:
             print(f"Couldn't find a matching food item for query {food_query}")
             print()
             continue
 
-        for NDB_No in NDB_Nos:
-            print()
-            print(f"Trying NDB_No {NDB_No}")
+        for food_item in food_items:
+            id = food_item['id']
+            metadata = food_item['metadata']
+            food_name = metadata['tmp_name']
+            aas = [json.loads(a) for a in metadata['aas']]
+            weights = [json.loads(w) for w in metadata['weights']]
+
+            td_score = None
+            if 'td_score' in metadata:
+                td_score = metadata['td_score']
+
             ingredient = None
             measure_units = measure_units_query
             gram_weight = None
 
-            result = list(conn.execute(
-                text("select * from food_info_types where NDB_No = :id and NutrDesc = 'Protein' limit 1"),
-                {'id': NDB_No}
-            ))
-            if len(result) == 0:
-                print(f"Couldn't find food match for {NDB_No}")
-                continue
+            protein_per_100g = metadata['protein_per_100g']
 
-            row = result[0]
-            id = row.NDB_No
-            protein_per_100g = row.Nutr_Val
-
-            if protein_per_100g is None or protein_per_100g == 0:
-                print(f"{food_query} doesn't contain protein. Skipping.")
-                print()
-                continue
-
-            food = list(conn.execute(
-                    text("select distinct * from food_info_types where NDB_No = :id and NutrDesc in ("+EAAS_QUERY_STRING+")"),
-                    {'id': id }
-            ))
-
-            measure_result = conn.execute(
-                text('select * from weight where NDB_No = :id'),
-                { 'id': id }
-            )
-
-            for weight in measure_result:
-                # TODO might have to do some adjustment here
-                #  might have to adjust the measure amount and the units
-                conversion = get_measure_conversion(measure_units_query, weight.Msre_Desc)
+            for weight in weights:
+                conversion = get_measure_conversion(measure_units_query, weight['Msre_Desc'])
                 if conversion is not None:
-                    gram_weight = conversion * weight.Gm_Wgt * measure_amount_query
+                    gram_weight = conversion * weight['Gm_Wgt'] * measure_amount_query
                     break
 
             if gram_weight is None:
-                # TODO this shouldn't mess up the nutrient loop
-                # if there's no weight result, maybe the amino acid result is still good, maybe we can combine the two
                 print(f"Insufficient weight data. Can't convert {measure_amount_query} {measure_units_query} of {food_query} to grams.")
                 continue
 
             # calculate total protein grams in queried amount of food
             total_protein_ing = gram_weight*protein_per_100g/100
 
-            ingredient = create_initial_ingredient(row.Long_Desc, food_query, total_protein_ing, gram_weight, food)
+            ingredient = create_initial_ingredient(food_name, food_query, total_protein_ing, gram_weight, aas)
             ingredient['amount'] = measure_amount_query
             ingredient['unit'] = measure_units_query
 
-            if len(ingredient['aas']) < 9:
-                # TODO if there's not enough amino acid data, then maybe we can pick the next best option if it still
-                # is a good match
-                print("Not enough amino acid data for ingredient match. Trying next match.")
-                continue
-            else:
-                td_result = find_one_vector_query(food_query, 'td')
-
-                if td_result is not None:
-                    score_result = conn.execute(
-                            text("select * from td_types where name = :name limit 1"),
-                            {'name': td_result['id']}
-                    )
-                    for (_, score, _) in score_result:
-                        set_td(ingredient, score)
+            if td_score is not None:
+                set_td(ingredient, td_score)
 
             if ingredient is not None:
                 ingredients.append(ingredient)
@@ -279,16 +225,8 @@ def cli(conn, recipe):
     percent_digestible_complete_protein = calculated_percent_digestible_protein(ingredients)
     return percent_digestible_complete_protein
 
-def lambda_handler(event, context):
-    with Session(engine) as conn:
-        recipe = event['recipe']
-        result = cli(conn, recipe)
-        return { 'result': result }
-
 if __name__ == "__main__":
-    with Session(engine) as conn:
-        recipe = veganmacandcheese #soymilk_recipe
-        percent_digestible_complete_protein = cli(conn, recipe)
-        print("Total Protein Stats")
-        pprint(percent_digestible_complete_protein)
-
+    recipe = veganmacandcheese #soymilk_recipe
+    percent_digestible_complete_protein = cli(recipe)
+    print("Total Protein Stats")
+    pprint(percent_digestible_complete_protein)
