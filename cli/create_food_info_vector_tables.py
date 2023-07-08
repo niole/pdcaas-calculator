@@ -104,6 +104,9 @@ def insert_food_embeddings_with_metadata():
     upserts = list(zip([i[0] for i in id_metadata], embeddings, [i[1] for i in id_metadata]))
     upload_chunks(upserts, 'info')
 
+def embed_recipes():
+    pass
+
 #insert_td_embeddings()
 #index.delete(deleteAll='true', namespace='info')
 #insert_food_info_embeddings()

@@ -34,7 +34,7 @@ export default function Home() {
         alert(`Please fill in the ${fieldNames} field(s).`);
     } else {
       // TODO generate some meal names, then generate recipes for each meal and then return the one with the highest protein content
-      fetch('http://localhost:3000/api/meal', { method: 'POST', body: JSON.stringify({mealtime: mealTime, preference: mealPreference, mealcount: 1}) })
+      fetch('http://localhost:3000/api/meal', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mealtime: mealTime, preference: mealPreference, mealcount: 1}) })
       .then((x: any) => x.text())
       .then((x: string) => console.log(x))
       .catch((e: any) => console.error(e));

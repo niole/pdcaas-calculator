@@ -1,39 +1,48 @@
-import { PromptTemplate } from "langchain/prompts";
 import { OpenAI } from "langchain/llms/openai";
+import R from 'ramda';
+import { Either, Recipe } from '../../types';
+import jsonParse from '../../utils/jsonParse';
 import { LLMChain } from "langchain/chains";
+import recipePrompt, {t} from '../../utils/prompts/recipePrompt';
+import mealNamesPrompt from '../../utils/prompts/foodNamesPrompt';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const foodNamesTemplate = 'generate the names of 3 {preference} {mealtime} meals for 1 person. give the output in the following format, JSON only: ["the name of meal 1", "the name of meal 2", "the name of meal 3"]'
-
-const mealNamesPrompt = new PromptTemplate({
-  template: foodNamesTemplate,
-  inputVariables: ["mealtime", "preference"],
+const model = new OpenAI({ 
+  openAIApiKey: process.env.OPENAI_API_KEY, // In Node.js defaults to process.env.OPENAI_API_KEY
+  temperature: 0.5
 });
 
 export default async function handler(req, res) {
   const { body } = req;
-  const { mealtime, preference, mealcount } = body;
+  const { mealtime, preference } = body;
 
-  const model = new OpenAI({ 
-    openAIApiKey: process.env.OPENAI_API_KEY, // In Node.js defaults to process.env.OPENAI_API_KEY
-    temperature: 0.8 });
-
-  const mealNameChain = new LLMChain({ llm: model, prompt: mealNamesPrompt });
-  console.log(req.body);
   try {
-    const resp = await mealNameChain.call({ 
-      mealtime,
-      preference,
+//    const mealNamesResp = await new LLMChain({ llm: model, prompt: mealNamesPrompt, verbose: true }).call({ 
+//      mealtime,
+//      preference,
+//    });
+
+    const mealNames = ["Fruit Salad","Veggie Omelette", "Bacon and Egg Toast"] // JSON.parse(mealNamesResp.text);
+
+    const recipes: [string, Either<Recipe, Error>][] = await Promise.all(mealNames.map(mealname =>
+      model.call(t(mealname))
+    ))
+    .then(rs => {
+      return R.zip(mealNames, rs.map(jsonParse<Recipe>));
     });
-    console.log(resp);
-    //const mealNames = JSON.parse(resp.res.text);
-    //const recipes = [];
+
+    const [parsedRecipes, failedParseRecipes] = R.partition(R.pipe(R.prop(1), R.prop('kind'), R.whereEq('success')))(recipes);
+
+    failedParseRecipes.forEach(([name, r]: [string, Either<Recipe, Error>]) => {
+      console.info(`Recipe generation for mealname ${name} failed. `, r.value);
+    })
+
+    console.log(parsedRecipes);
     //const recipeSummaries = [];
     return res.status(200);
   } catch (error) {
-    const { data, status, statusText } = error.response;
-    console.error(data.error);
-    return res.status(500).json({"message": JSON.stringify(data.error)});
+    console.error(error);
+    return res.status(500).json(error);
   }
 };

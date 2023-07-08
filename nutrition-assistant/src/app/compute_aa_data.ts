@@ -1,5 +1,6 @@
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { findLimitVectorQuery } from 'pineconeClient';
+import { Recipe } from  '../types';
 
 const embeddings = new OpenAIEmbeddings({
   openAIApiKey: process.env.OPENAI_API_KEY, // In Node.js defaults to process.env.OPENAI_API_KEY
@@ -18,11 +19,6 @@ const EAA_PROPORTIONS: { [key: string]: number } = {
     "Valine": 32/1000,
     "Histidine": 18/1000
 }
-type Recipe = {
-  total_servings: number,
-  ingredients: {units: string, "name": string, "total": number}[],
-  instructions: string,
-};
 type DomainAA = { name: string, per100g: number };
 type AA = { name: string, total_protein_g: number };
 type Ingredient = {

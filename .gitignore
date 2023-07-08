@@ -6,3 +6,5 @@ sources.zip
 food.db
 fooddb.zip
 .env
+cli/scrapes/data/
+cli/open_ai/data/

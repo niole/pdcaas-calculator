@@ -5,3 +5,5 @@ torchvision==0.15.2
 python-dotenv==1.0.0
 pinecone-client
 sqlite3
+Scrapy==2.9.0
+openai==0.27.8
