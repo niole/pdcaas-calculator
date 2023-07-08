@@ -1,5 +1,6 @@
 import os
 import re
+import click
 from functools import partial
 import json
 import logging
@@ -9,6 +10,7 @@ from pprint import pprint
 from multiprocessing import Pool
 import multiprocessing
 from pinecone_client import find_limit_vector_query, find_one_vector_query
+from conversions_map import CONVERSIONS, LB_GROUP, OUNCE_GROUP
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -20,9 +22,6 @@ model = SentenceTransformer('all-MiniLM-L6-v2')
 
 BAREFOOT_CONTESSA_JSON = 'open_ai/data/barefootcontessa_array.json'
 OH_SHE_GLOWS_JSON = 'open_ai/data/ohsheglows_array.json'
-
-OUT_BAREFOOT_CONTESSA_JSON = 'open_ai/data/barefootcontessa_w_nutrients.json'
-OUT_OH_SHE_GLOWS_JSON = 'open_ai/data/ohsheglows_w_nutrients.json'
 
 essential_amino_acids = ["Tryptophan","Threonine","Isoleucine","Leucine","Lysine","Methionine","Phenylalanine","Valine","Histidine"]
 EAAS_QUERY_STRING = ','.join(["'" + a + "'" for a in essential_amino_acids])
@@ -37,46 +36,19 @@ EAA_PROPORTIONS = {
     "Valine": 32/1000,
     "Histidine": 18/1000
 }
-TBSP_GROUP = ['tbs', 'tbsp', 'tablespoons', 'tablespoon', 'tbsps']
-TSP_GROUP = ['tsp', 'teaspoons', 'teaspoon', 'tsps']
-CUP_GROUP = ['cup', 'cups', 'cs', 'c']
-LB_GROUP = ['pound', 'lb', 'lbs', 'pounds']
-OUNCE_GROUP = ['oz', 'ounce', 'ounces']
-GRAMS_GROUP = ['g', 'gram', 'grams']
-
-UNIT_GROUPS = [
-    TBSP_GROUP,
-    TSP_GROUP,
-    CUP_GROUP,
-    LB_GROUP,
-    OUNCE_GROUP,
-    GRAMS_GROUP,
-]
-GRAMS_IN_LB = 453.6
-GRAMS_IN_OUNCE = 28.34
-CONVERSIONS = {}
-for e in TBSP_GROUP:
-    CONVERSIONS[e] = [(l, 3) for l in TSP_GROUP] + [(l, 1/16) for l in CUP_GROUP] + [(l, 1) for l in TBSP_GROUP]
-for e in TSP_GROUP:
-    CONVERSIONS[e] = [(l, 1/3) for l in TBSP_GROUP] + [(l, 1/48) for l in CUP_GROUP] + [(l, 1) for l in TSP_GROUP]
-for e in CUP_GROUP:
-    CONVERSIONS[e] = [(l, 16) for l in TBSP_GROUP] + [(l, 48) for l in TSP_GROUP] + [(l, 1) for l in CUP_GROUP]
-for e in LB_GROUP:
-    CONVERSIONS[e] = [(l, 16) for l in OUNCE_GROUP] + [(l, GRAMS_IN_LB) for l in GRAMS_GROUP] + [(l, 1) for l in LB_GROUP]
-for e in OUNCE_GROUP:
-    CONVERSIONS[e] = [(l, 1/16) for l in LB_GROUP] + [(l, GRAMS_IN_OUNCE) for l in GRAMS_GROUP] + [(l, 1) for l in OUNCE_GROUP]
-for e in GRAMS_GROUP:
-    CONVERSIONS[e] = [(l, 1/GRAMS_IN_LB) for l in LB_GROUP] + [(l, 1/GRAMS_IN_OUNCE) for l in OUNCE_GROUP] + [(l, 1) for l in GRAMS_GROUP]
 
 def create_aa(name, total_per100g, total_g_ing):
     return {
         'name': name,
         'total_protein_g': total_g_ing*total_per100g/100
     }
-def create_ingredient(food_query, name, total_protein, td = 1, aas = []):
+def create_ingredient(id, food_item_name, name, total_protein, td = 1, aas = []):
     return {
         'name': name,
-        'food_query': food_query,
+        'food_match': {
+            'id': id,
+            'name': food_item_name,
+        },
         'aas': aas,
         'total_protein_g': total_protein,
         'td': td
@@ -86,14 +58,14 @@ def set_td(ingredient, td_score):
     # set TD score for ingredient
     ingredient['td'] = td_score
 
-def create_initial_ingredient(food_query, name, total_protein, total_g_ing, aas):
+def create_initial_ingredient(id, food_item_name, name, total_protein, total_g_ing, aas):
     aas_final = []
 
     for f in aas:
         aas_final.append(
             create_aa(f['name'], f['per100g'], total_g_ing)
         )
-    ingredient = create_ingredient(food_query, name, total_protein, 1, aas_final)
+    ingredient = create_ingredient(id, food_item_name, name, total_protein, 1, aas_final)
 
     return ingredient
 
@@ -121,6 +93,26 @@ def get_limiting_aa(ingredient):
 """
 This calculates the protein balance for all ingredients and returns the percent of consumed
 protein that is digestible and balanced protein from the essential amino acids.
+output:
+{
+    "percent_complete_digestible_protein": number,
+    "total_complete_digestible_protein_g": number,
+    "total_protein_g": number,
+    "ingredient_summaries": {
+        'name': string,
+        'food_match': { id: string, name: string },
+        'limiting_aa_details': {
+            'name': string,
+            'total_protein_g': number
+        },
+        'total_protein_g': number,
+        'total_balanced_protein_g': number,
+        'aas': {
+            'name': string,
+            'total_protein_g': number
+        }[]
+    }[]
+}
 """
 def calculated_percent_digestible_protein(ingredients):
     total_achievable_protein_g = 0
@@ -144,6 +136,7 @@ def calculated_percent_digestible_protein(ingredients):
             total_achievable_protein_food_g = ingredient['td'] * min(total_limiting_aa_g / EAA_PROPORTIONS[limiting_aa], ingredient['total_protein_g'])
         ingredient_summaries.append({
             'name': ingredient['name'],
+            'food_match': ingredient['food_match'],
             'limiting_aa_details': limiting_aa_details,
             'total_protein_g': ingredient['total_protein_g'],
             'total_balanced_protein_g': total_achievable_protein_food_g,
@@ -276,7 +269,7 @@ def cli(recipe):
             metadata = food_item['metadata']
             food_name = metadata['tmp_name']
 
-            logger.warning(f"Food item name {food_name}")
+            logger.warning(f"Found food item match for request {food_query}: {food_name}, id {id}")
 
             aas = [json.loads(a) for a in metadata['aas']]
             weights = [json.loads(w) for w in metadata['weights']]
@@ -302,7 +295,7 @@ def cli(recipe):
             # calculate total protein grams in queried amount of food
             total_protein_ing = protein_per_100g*gram_weight/100
 
-            ingredient = create_initial_ingredient(food_name, food_query, total_protein_ing, gram_weight, aas)
+            ingredient = create_initial_ingredient(id, food_name, food_query, total_protein_ing, gram_weight, aas)
             ingredient['amount'] = measure_amount_query
             ingredient['unit'] = measure_units_query
 
@@ -360,8 +353,8 @@ def test_get_gram_weight():
     assert(actual8 == expected8)
 
 
-if __name__ == '__main__':
-    test_get_gram_weight()
+#if __name__ == '__main__':
+#    test_get_gram_weight()
 
 
 #if __name__ == '__main__':
@@ -383,10 +376,31 @@ def cli_test():
 #if __name__ == "__main__":
 #    cli_test()
 
-if __name__ == "__main__":
-    files = [(BAREFOOT_CONTESSA_JSON, OUT_BAREFOOT_CONTESSA_JSON), (OH_SHE_GLOWS_JSON, OUT_OH_SHE_GLOWS_JSON)]
-    for (inpath, outpath) in files:
+def get_out_file_name(inpath):
+    file_name_p = r'(\w+)\.json'
+    file_name_w_ext = inpath.split('/')[-1]
+
+    m = re.match(file_name_p, file_name_w_ext)
+
+    return f'{m.groups()[0]}_w_nutrients.json'
+
+
+@click.command()
+@click.option('--inpaths', '-i', multiple=True, default=[BAREFOOT_CONTESSA_JSON, OH_SHE_GLOWS_JSON])
+@click.option('--outpath', '-o', type=str, default='open_ai/data')
+def main(inpaths, outpath):
+    for inpath in inpaths:
+        out_fn = get_out_file_name(inpath)
+
+        if not os.path.isdir(outpath):
+            raise Exception(f'{outpath} is not a directory')
+
+        outpath = f'{outpath}/{out_fn}'
+
         with open(inpath, 'r') as file:
             recipes = json.loads(file.read())
             with Pool(5) as p:
                 p.map(partial(add_protein_data, outpath=outpath), recipes)
+
+if __name__ == "__main__":
+    main()

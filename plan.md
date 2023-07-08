@@ -22,13 +22,16 @@ what stats?
   - include descriptions, or a description of the site and add it to every recipe DONE
   - include the recipe's name and replace any identifying text DONE
 - parse out ingredient quantities using openai and save on the ingredient json DONE
-- get protein analysis and save onto the json
+- would be better if we saved onto the metadata what kind of food item was used to compute the nutritional information
+- get protein analysis and save onto the json DONE
 - create new vector index namespace called 'recipes' and embed the json and save the json as metadata in the db
 - update the web app to get the recipes that best match the openai generated meal names and render them in the UI
-- BUG: olive oil and mayonaise with olive oil match with higher likely hood than just olive oil
-- BUG: couldn't find "cheese" or "cheddar" as the food item for good sharp aged white Cheddar, such as Cabot
-- BUG: no good units on eggs { "units": "extra-large", "name": "eggs", "total": 5} or bacon  {"units": "slices": "name": "bacon", "total": 3} DONE, fixed with 1 off mappings
-- BUG: search for bacon turns up Bacon, mealess as most likely food item, milk is mapped to Milk, human, mature, fluid
+
+# Bugs
+- olive oil and mayonaise with olive oil match with higher likely hood than just olive oil
+- couldn't find "cheese" or "cheddar" as the food item for good sharp aged white Cheddar, such as Cabot
+- no good units on eggs { "units": "extra-large", "name": "eggs", "total": 5} or bacon  {"units": "slices": "name": "bacon", "total": 3} DONE, fixed with 1 off mappings
+- search for bacon turns up Bacon, mealess as most likely food item, milk is mapped to Milk, human, mature, fluid
 
 
 id = recipename + origin

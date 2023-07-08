@@ -8,3 +8,4 @@ fooddb.zip
 .env
 cli/scrapes/data/
 cli/open_ai/data/
+cli/open_ai/test_data/*w_nutrients.json
