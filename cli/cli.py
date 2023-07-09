@@ -11,6 +11,7 @@ from multiprocessing import Pool
 import multiprocessing
 from pinecone_client import find_limit_vector_query, find_one_vector_query
 from conversions_map import CONVERSIONS, LB_GROUP, OUNCE_GROUP
+from get_file_name import get_file_name
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -18,7 +19,7 @@ logger = multiprocessing.get_logger()
 logger.setLevel(logging.WARNING)
 logging.basicConfig(level=logging.WARNING)
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+model = SentenceTransformer('multi-qa-MiniLM-L6-cos-v1') # pretty good, still off
 
 BAREFOOT_CONTESSA_JSON = 'open_ai/data/barefootcontessa_array.json'
 OH_SHE_GLOWS_JSON = 'open_ai/data/ohsheglows_array.json'
@@ -182,6 +183,11 @@ def get_measure_conversion(requested_units, units):
             )
             if conversion is not None:
                 return conversion[1]
+            else:
+                # convert straight to grames, even though might be inaccurate
+                direct_grams_conversion = next((c for c in conversions if c[0] == 'g'), None)
+                if direct_grams_conversion is not None:
+                    return direct_grams_conversion[1]
 
     return None
 
@@ -200,11 +206,6 @@ def get_gram_weight(food_name, ingredient_units, ingredient_amount, possible_mea
     conversion = get_measure_conversion(ingredient_units, possible_measure_unit)
     if conversion is not None:
         return conversion * possible_measure_weight * ingredient_amount
-    elif ingredient_units in LB_GROUP:
-        # can convert directlly to the possible_measure_weight
-        return ingredient_amount * GRAMS_IN_LB
-    elif ingredient_units in OUNCE_GROUP:
-        return ingredient_amount * GRAMS_IN_OUNCE
     else:
         # TODO do 1 off checks against food_name
         is_bread = re.search(r'bread', food_name, re.IGNORECASE)
@@ -289,7 +290,7 @@ def cli(recipe):
                     break
 
             if gram_weight is None:
-                logger.warning(f"Insufficient weight data. Can't convert {measure_amount_query} {measure_units_query} of {food_query} to grams.")
+                logger.warning(f"Insufficient weight data. Can't convert {food_query} measurement to grams, units: {measure_amount_query}, amount: {measure_units_query}.")
                 continue
 
             # calculate total protein grams in queried amount of food
@@ -376,21 +377,12 @@ def cli_test():
 #if __name__ == "__main__":
 #    cli_test()
 
-def get_out_file_name(inpath):
-    file_name_p = r'(\w+)\.json'
-    file_name_w_ext = inpath.split('/')[-1]
-
-    m = re.match(file_name_p, file_name_w_ext)
-
-    return f'{m.groups()[0]}_w_nutrients.json'
-
-
 @click.command()
 @click.option('--inpaths', '-i', multiple=True, default=[BAREFOOT_CONTESSA_JSON, OH_SHE_GLOWS_JSON])
 @click.option('--outpath', '-o', type=str, default='open_ai/data')
 def main(inpaths, outpath):
     for inpath in inpaths:
-        out_fn = get_out_file_name(inpath)
+        out_fn = get_file_name(inpath, '_w_nutrients')
 
         if not os.path.isdir(outpath):
             raise Exception(f'{outpath} is not a directory')

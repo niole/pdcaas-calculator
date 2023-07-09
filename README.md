@@ -40,3 +40,19 @@ python cli.py
 
 # Sources
 If you want to work with the csv data, unzip sources.zip into the sources/ directory
+
+# How-To
+
+## add nutrient data to scraped recipes
+
+```sh
+SCRAPED_DATA=scrapes/data/ohsheglows.jsonl
+
+python open_ai/parse_ingredients.py -i vegan $SCRAPED_DATA -o 'open_ai/test_data'
+
+cat open_ai/test_data/ohsheglows.json | jq -sc '.' > open_ai/test_data/ohsheglows_array.json
+
+python cli.py -i open_ai/test_data/ohsheglows_array.json -o open_ai/test_data
+
+cat open_ai/test_data/ohsheglows_array_w_nutrients.json | jq 'length'
+```

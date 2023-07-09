@@ -17,21 +17,24 @@ what stats?
 - we're missing some food items that would be good to have
 
 # TODO
-- redo scraping
-  - inlcude tags and if we know the site is vegan, we add a vegan tag DONE
-  - include descriptions, or a description of the site and add it to every recipe DONE
-  - include the recipe's name and replace any identifying text DONE
-- parse out ingredient quantities using openai and save on the ingredient json DONE
-- would be better if we saved onto the metadata what kind of food item was used to compute the nutritional information
-- get protein analysis and save onto the json DONE
+- try the open ai functions API to do parsing into JSON repsonse
+- try different sentence embedding library to see if we get better food item matching
+- put food items into db: cassava flour, nutritional yeast
 - create new vector index namespace called 'recipes' and embed the json and save the json as metadata in the db
 - update the web app to get the recipes that best match the openai generated meal names and render them in the UI
 
 # Bugs
 - olive oil and mayonaise with olive oil match with higher likely hood than just olive oil
 - couldn't find "cheese" or "cheddar" as the food item for good sharp aged white Cheddar, such as Cabot
-- no good units on eggs { "units": "extra-large", "name": "eggs", "total": 5} or bacon  {"units": "slices": "name": "bacon", "total": 3} DONE, fixed with 1 off mappings
 - search for bacon turns up Bacon, mealess as most likely food item, milk is mapped to Milk, human, mature, fluid
+- no entry for almond flour
+- no entry for almond milk there is "milk imitation non-soy": 43543
+- sunflower seeds maps to lotus seeds, maybe remove the lotus seed entry? 12205 
+- entry for brown rice syrup?
+- hazelnuts -> hazel nut oil
+- salt and peper to raw banana pepper, maybe could remove extraneous words like "good" and "raw", maybe could map any nut milk to the imitation milk...or add own entries
+- non-dary milk confuses cli
+- matches coconut oil instead of coconut milk
 
 
 id = recipename + origin

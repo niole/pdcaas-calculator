@@ -1,4 +1,5 @@
 import os
+import click
 import re
 import hashlib
 import openai
@@ -8,6 +9,7 @@ from fractions import Fraction
 from functools import partial
 import multiprocessing
 from multiprocessing import Pool
+import get_file_name
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -20,7 +22,6 @@ logger.setLevel(logging.INFO)
 OH_SHE_GLOWS_ORIGIN = 'ohsheglows'
 BAREFOOT_CONTESSA_ORIGIN = 'barefootcontessa'
 
-#openai.organization = "Personal"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def parse_json(s):
@@ -31,7 +32,7 @@ def parse_json(s):
         return None
 
 def build_prompt(ingredients_json):
-    prompt = f"rewrite the following JSON to fix the schema. \n JSON: {ingredients_json}" + '\n SCHEMA: [{"units": "cup", "name": "wheat pasta", "total": 1}, {"units":"tsp", "name":"salt","total": 0.5}, {"units": "lbs", "name": "beef", "total": 1}, {"units": "teaspoon", "name": "mustard", "total": 0.25}, {"units": "tablespoon", "name":"peanut butter" , "total": 2}, {"units":"tbsp", "name":"sour cream", "total":1.5}]'
+    prompt = f"rewrite the following JSON to fix the schema. Also, simplify the food names as much as possible.\n JSON: {ingredients_json}" + '\n SCHEMA: [{"units": "cup", "name": "wheat pasta", "total": 1}, {"units":"tsp", "name":"salt","total": 0.5}, {"units": "lbs", "name": "beef", "total": 1}, {"units": "teaspoon", "name": "mustard", "total": 0.25}, {"units": "tablespoon", "name":"peanut butter" , "total": 2}, {"units":"tbsp", "name":"sour cream", "total":1.5}]'
 
     return prompt
 
@@ -159,8 +160,18 @@ def test_parse_ingredients_json_response():
 #    test_parse_ingredient_units()
 #    test_parse_ingredients_json_response()
 
+@click.command()
+@click.option('--inpaths', '-i', multiple=True, default=[(OH_SHE_GLOWS_ORIGIN, 'scrapes/data/ohsheglows.jsonl'), (BAREFOOT_CONTESSA_ORIGIN, 'scrapes/data/barefootcontessa.jsonl')])
+@click.option('--outpath', '-o', type=str, default='open_ai/data')
+@click.option('--count', '-c', type=int)
+def main(inpaths, outpath, count):
+    if not os.path.isdir(outpath):
+        raise Exception(f'{outpath} is not a directory')
+
+    for (origin, file) in inpaths:
+        fn = get_file_name.get_file_name(file, '')
+
+        parse_jsonl(origin, file, f'{outpath}/{fn}', count)
 
 if __name__ == "__main__":
-    #parse_jsonl(OH_SHE_GLOWS_ORIGIN, 'scrapes/data/ohsheglows.jsonl', 'open_ai/data/ohsheglows.json')
-    #parse_jsonl(BAREFOOT_CONTESSA_ORIGIN, 'scrapes/data/barefootcontessa.jsonl', 'open_ai/data/barefootcontessa.json')
-    pass
+    main()
