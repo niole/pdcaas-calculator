@@ -19,6 +19,11 @@ class Recipe:
         else:
             self.protein_breakdown = ProteinBreakdown(self.ingredients)
 
+    def is_scored(self):
+        if self.protein_breakdown is not None:
+            return self.protein_breakdown.is_scored()
+        return False
+
     def set_ingredients(self, ingredients):
         self.ingredients = ingredients
         self._init_protein_breakdown()

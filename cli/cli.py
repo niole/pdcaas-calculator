@@ -112,7 +112,7 @@ def cli(recipe):
 
     scored_recipe = Recipe(recipe["id"], recipe["title"], ingredients)
 
-    if len(ingredients) < len(recipe['ingredients_w_units']):
+    if len(ingredients) < len(recipe['ingredients_w_units']) or not scored_recipe.is_scored():
         logger.warning(f"Failed to score all ingredients in recipe {recipe['title']}")
 
         # TODO update database entry with scoring data from scored_recipe
