@@ -3,7 +3,7 @@ from itertools import groupby
 import json
 from sentence_transformers import SentenceTransformer
 import pinecone
-from pinecone_client import find_limit_vector_query, find_one_vector_query
+from pinecone_client import find_one_vector_query
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 db = sqlite3.connect('food.db')
@@ -23,8 +23,9 @@ def upload_chunks(data, namespace):
         if len(chunk) > 0:
             index.upsert(chunk, namespace=namespace)
 
-def encode_str_list(data):
-    return [m.tolist() for m in model.encode(data)]
+# TODO allow model to be pluggable
+def encode_str_list(data, providedModel = model):
+    return [m.tolist() for m in providedModel.encode(data)]
 
 def group_to_dict(group):
     d = {}
@@ -33,36 +34,62 @@ def group_to_dict(group):
 
     return d
 
-def insert_measurement_embeddings():
+def insert_measurement_embeddings(providedModel = model):
     measures = db.execute('select distinct Msre_Desc from weight;').fetchall()
     names = [m[0] for m in measures]
 
-    data = list(zip(names, [m.tolist() for m in model.encode(names)]))
+    data = list(zip(names, [m.tolist() for m in providedModel.encode(names)]))
     upload_chunks(data, 'measures')
     
 
-def insert_td_embeddings():
+def insert_td_embeddings(providedModel = model):
     # TODO add td_score metadata
     #index.delete(deleteAll='true', namespace='td')
     food = db.execute('select distinct * from td_types;').fetchall()
     food_names = [f[0] for f in food]
     td_scores = [{'td_score': f[1]} for f in food]
-    data = list(zip(food_names, [m.tolist() for m in model.encode(food_names)], td_scores))
+    data = list(zip(food_names, [m.tolist() for m in providedModel.encode(food_names)], td_scores))
 
     upload_chunks(data, 'td')
 
-def insert_food_info_embeddings():
+# TODO maybe we can delete?
+def insert_food_info_embeddings(providedModel = model):
     food = db.execute('select distinct NDB_No, Long_Desc from food_info_types;').fetchall()
     food_names = [f[1] for f in food]
-    data = list(zip([str(f[0]) for f in food], [m.tolist() for m in model.encode(food_names)]))
+    data = list(zip([str(f[0]) for f in food], [m.tolist() for m in providedModel.encode(food_names)]))
 
     upload_chunks(data, 'info')
 
+"""
+Embeds the Long_Desc of all food_info_types food items and adds the weights, amino acid data, and TD score as metadata
+
+TODO also embeds previously scored recipes as food items, ingredients are the results of recipes and good items
+This would mean that we have to store some kind of weight data on the recipe, maybe the weight in grams, bc supposedly I would be able to calculate that, the TD score is the digestible protein/total protein, amino acid data could be calculated
+
+when a recipe is successfully scored, it also goes into the "info" namespace,
+then for recipes that aren't successfully scored, we could run the script again. Should store the recipes that are "WIP" in sqlite.
+
+a recipe is successfullly scored when all ingredients were completely findable in the "info" namespace and we scored the recipe.
+
+successfully scored recipes are embedded in the "info" namespace as food items
+
+unsuccessfullly scored recipes live in a collection in sqlite called "recipes"....
+
+in order to make sure that we can score things properly, we need to fine-tune the sentence transformer to match ingredients to food in food_info_types
+
+1. fine tune sentence transformer. I think we want to choose a data representation that indicates that something does and does not match, maybe see what the sentence transformer currently scores the thing as and if it's too high and it's wrong, give it a low score. then manually go and find the right match
+2. re-embed all food_info_types entries into the info namespace with the new model
+3. ingest all recipes into sqlite. The recipe data collections will have a notion of successful scoring
+4. score the recipes, successfully scored recipes will be embedded in the "info" namespace, unsuccessfullly scored recipes will only exist in sqlite
+5. run 2 rounds of scoring for the recipes in sqlite, by then you will have the recipes that were immediately scorable and the recipes that are not possible to complete given the state of the food db, the current recipes, the sentence transformer
+6. evaluate the unsuccessfullly scored recipes
+"""
 def insert_food_embeddings_with_metadata():
+    # NDB_No -> { weights, aas, td_score, protein_per_100g }
     upsert_map = {}
     grouped_food = {}
     weight_result = {}
-    # metadata = { protein_g: number, amino_acids: []"{name: str, per100g: int}", td_score: number, weights: []"{msre_desc: string, gm_weight: int}"}
+    # metadata = { protein_g: number, amino_acids: []{name: str, per100g: int}, td_score: number, weights: []{Msre_Desc: string, Gm_Weight: int}}
     food = list(db.execute("select  NDB_No, Nutr_Val, Long_Desc, NutrDesc from food_info_types where NutrDesc in ('Protein',"+EAAS_QUERY_STRING+");").fetchall())
     grouped_food = group_to_dict(groupby(food, lambda x: x[0]))
 
@@ -81,7 +108,9 @@ def insert_food_embeddings_with_metadata():
 
             d = all_protein_data[0]
             upsert_map[id]['tmp_name'] = d[2]
-            td_result = find_one_vector_query(d[2], 'td') # TODO could update this to have metadata for the td score
+
+            # TODO how good are the embeddings for the TD score to the nutritional food Long_Desc?
+            td_result = find_one_vector_query(d[2], 'td')
             if td_result is not None and "td_score" in td_result["metadata"]:
                 score_result = td_result["metadata"]["td_score"]
                 upsert_map[id]['td_score'] = score_result
@@ -99,8 +128,9 @@ def insert_food_embeddings_with_metadata():
                 }))
 
 
+    # upsert everything into info namespace
     id_metadata = upsert_map.items()
-    embeddings = encode_str_list([idm[1]['tmp_name'] for idm in id_metadata])
+    embeddings = encode_str_list([idm[1]['tmp_name'] for idm in id_metadata]) # TODO provide fine tuned "food item name to ingredient name" model here
     upserts = list(zip([i[0] for i in id_metadata], embeddings, [i[1] for i in id_metadata]))
     upload_chunks(upserts, 'info')
 
