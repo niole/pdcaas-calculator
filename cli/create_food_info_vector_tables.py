@@ -1,4 +1,5 @@
 import sqlite3
+import click
 from itertools import groupby
 import json
 from sentence_transformers import SentenceTransformer
@@ -85,6 +86,8 @@ in order to make sure that we can score things properly, we need to fine-tune th
 6. evaluate the unsuccessfullly scored recipes
 """
 def insert_food_embeddings_with_metadata():
+    food_item_transformer = SentenceTransformer('./food_item_transformer')
+
     # NDB_No -> { weights, aas, td_score, protein_per_100g }
     upsert_map = {}
     grouped_food = {}
@@ -130,12 +133,22 @@ def insert_food_embeddings_with_metadata():
 
     # upsert everything into info namespace
     id_metadata = upsert_map.items()
-    embeddings = encode_str_list([idm[1]['tmp_name'] for idm in id_metadata]) # TODO provide fine tuned "food item name to ingredient name" model here
+    embeddings = encode_str_list([idm[1]['tmp_name'] for idm in id_metadata], providedModel = food_item_transformer)
     upserts = list(zip([i[0] for i in id_metadata], embeddings, [i[1] for i in id_metadata]))
     upload_chunks(upserts, 'info')
 
-def embed_recipes():
+def embed_recipe_names():
     pass
+
+@click.command()
+@click.option('--embed_food_items', is_flag=True, default=False)
+def main(embed_food_items):
+    if embed_food_items:
+        insert_food_embeddings_with_metadata()
+
+
+if __name__ == "__main__":
+    main()
 
 #insert_td_embeddings()
 #index.delete(deleteAll='true', namespace='info')

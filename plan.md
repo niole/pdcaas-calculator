@@ -61,17 +61,8 @@ in order to make sure that we can score things properly, we need to fine-tune th
 - update the web app to get the recipes that best match the openai generated meal names and render them in the UI
 
 # Bugs
-- olive oil and mayonaise with olive oil match with higher likely hood than just olive oil
-- couldn't find "cheese" or "cheddar" as the food item for good sharp aged white Cheddar, such as Cabot
-- search for bacon turns up Bacon, meatless as most likely food item, milk is mapped to Milk, human, mature, fluid
-- no entry for almond flour
-- no entry for almond milk there is "milk imitation non-soy": 43543
-- sunflower seeds maps to lotus seeds, maybe remove the lotus seed entry? 12205 
-- entry for brown rice syrup?
-- hazelnuts -> hazel nut oil
-- salt and peper to raw banana pepper, maybe could remove extraneous words like "good" and "raw", maybe could map any nut milk to the imitation milk...or add own entries
-- non-dary milk confuses cli
-- matches coconut oil instead of coconut milk
+- matches oats for rolled oats. Oats has a much higher protein content than rolled oats, so not quite
+- fine tune units transformer
 
 
 id = recipename + origin

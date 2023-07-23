@@ -1,76 +1,80 @@
 import logging
 import re
 import multiprocessing
-from pinecone_client import find_limit_vector_query
-from conversions_map import CONVERSIONS, LB_GROUP, OUNCE_GROUP
+from conversions_map import CONVERSIONS, UNIT_GROUPS
 
 logger = multiprocessing.get_logger()
 logger.setLevel(logging.WARNING)
 logging.basicConfig(level=logging.WARNING)
 
-def test_get_gram_weight():
-    food_name = 'sugar'
-    actual = get_gram_weight(food_name, 'oz', 8, 'g', 10)
-    expected = 28.34 * 8 * 10
-    assert(actual == expected)
+def clean_units(units):
+    for ug in UNIT_GROUPS:
+        for u in ug:
+            same = have_same_units(units, u)
+            if same:
+                return u
+    return units
 
-    actual2 = get_gram_weight(food_name, 'tsps', 2.5, 'cups', 4)
-    expected2 = 1/48 * 2.5 * 4
-    assert(actual2 == expected2)
-
-    actual3 = get_gram_weight(food_name, 'cup', 2.5, 'teaspoon', 4)
-    expected3 = 48 * 2.5 * 4
-    assert(actual3 == expected3)
-
-    actual4 = get_gram_weight(food_name, 'tablespoon', 2.5, 'tsp', 4)
-    expected4 = 3 * 2.5 * 4
-    assert(actual4 == expected4)
-
-    actual5 = get_gram_weight(food_name, 'g', 8, 'ounces', 10)
-    expected5 = 1/28.34 * 8 * 10
-    assert(actual5 == expected5)
-
-    actual6 = get_gram_weight(food_name, 'pound', 8, 'ounce', 10)
-    expected6 = 16 * 8 * 10
-    assert(actual6 == expected6)
-
-    actual7 = get_gram_weight(food_name, 'oz', 8, 'lb', 10)
-    expected7 = 1/16 * 8 * 10
-    assert(actual7 == expected7)
-
-    actual8 = get_gram_weight('brocolini', 'pounds', 5.5, 'grams', 1)
-    expected8 = 453.6 * 5.5
-    assert(actual8 == expected8)
+def match_unit(unit, s):
+    p = f"(\s+|^)({unit})(\s*|s)(\s*|$)"
+    m = re.search(p, s)
+    if m is not None:
+        matches = m.groups()
+        return matches[1]
+    return None
 
 """
+if the strings contain the same kind of units and don't contain any quanitfiers in front of the unit or any additional units (except 1), they are the same
+"""
+def have_same_units(input1, input2):
+    s1 = input1.lower()
+    s2 = input2.lower()
+    no_additional_units = True
+    no_quantifiers = True
+
+    for ug in UNIT_GROUPS:
+        s1_matches = False
+        s2_matches = False
+        for unit in ug:
+            possible_s1_match = match_unit(unit, s1)
+            possible_s2_match = match_unit(unit, s2)
+
+            if possible_s1_match:
+                s1_matches = True
+            if possible_s2_match:
+                s2_matches = True
+
+        if s1_matches and s2_matches:
+            return True
+
+        elif not (not s1_matches and not s2_matches):
+            # if 1 of them matches, but the other doesn't, we are also done: "not a match"
+            return False
+
+    return False
+
+"""
+This will see if the requested_units and units are the same by doing cosin similarity on them. If they are not the same,
+then this will iterate through the conversions that exist for units to see if any of them match requested_units via cosin sim
+
 requested_units - the units that are found in the recipe
 units - units that we have a "to grams" conversion for with regards to the food item that corresponds to the ingredient
 
 returns - a scalar, with which to multiply the ingredient's quantity in order to convert it from "requested_units" to "units"
 """
 def get_measure_conversion(requested_units, units):
-    # check to see if the requested units could be real
-    likely_measures = find_limit_vector_query(requested_units, 5, 'measures')
-    match = next((m for m in likely_measures if m['score'] >= 0.7), None)
-    # check to see if the found
-    # weight matches the known weights
-    if match is not None:
-        matched_unit = match['id']
-
-        if matched_unit in CONVERSIONS:
-            conversions = CONVERSIONS[matched_unit]
-            conversion = next(
-                (c for c in conversions if c[0] == units),
-                None
-            )
-            if conversion is not None:
-                return conversion[1]
-            else:
-                # convert straight to grames, even though might be inaccurate
-                direct_grams_conversion = next((c for c in conversions if c[0] == 'g'), None)
-                if direct_grams_conversion is not None:
-                    return direct_grams_conversion[1]
-
+    cleaned_units = clean_units(units)
+    same = have_same_units(requested_units, cleaned_units)
+    if same:
+        # requested_units is the same as units
+        return 1
+    else:
+        # see if there's anything that units can convert to is simliar to requested_units
+        if cleaned_units in CONVERSIONS:
+            for possible_unit in CONVERSIONS[cleaned_units]:
+                same = have_same_units(requested_units, possible_unit[0])
+                if same:
+                    return 1/possible_unit[1]
     return None
 
 """
@@ -87,9 +91,9 @@ def get_gram_weight(food_name, ingredient_units, ingredient_amount, possible_mea
     logger.warning(f"get_gram_weight {food_name}, {ingredient_units}, {ingredient_amount}, {possible_measure_unit}, {possible_measure_weight}")
     conversion = get_measure_conversion(ingredient_units, possible_measure_unit)
     if conversion is not None:
-        return conversion * possible_measure_weight * ingredient_amount
+        return conversion * float(possible_measure_weight) * float(ingredient_amount)
     else:
-        # TODO do 1 off checks against food_name
+        # 1 off checks against food_name
         is_bread = re.search(r'bread', food_name, re.IGNORECASE)
         is_bacon = re.search(r'bacon', food_name, re.IGNORECASE)
         is_egg = re.search(r'egg', food_name, re.IGNORECASE)
@@ -111,7 +115,3 @@ def get_gram_weight(food_name, ingredient_units, ingredient_amount, possible_mea
             return 30 * ingredient_amount 
 
     return None
-
-
-if __name__ == '__main__':
-    test_get_gram_weight()

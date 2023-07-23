@@ -23,13 +23,13 @@ logger = multiprocessing.get_logger()
 logger.setLevel(logging.WARNING)
 logging.basicConfig(level=logging.WARNING)
 
-model = SentenceTransformer('multi-qa-MiniLM-L6-cos-v1') # pretty good, still off
+model = SentenceTransformer('./transformers/food_item_transformer')
 
 BAREFOOT_CONTESSA_JSON = 'open_ai/data/barefootcontessa_array.json'
 OH_SHE_GLOWS_JSON = 'open_ai/data/ohsheglows_array.json'
 
 def get_matching_food_items(query):
-    ms = list(find_limit_vector_query(query, 20, 'info'))
+    ms = list(find_limit_vector_query(query, 20, 'info', model))
 
     return [m for m in ms if m['score'] >= 0.7]
 
@@ -69,8 +69,9 @@ def cli(recipe):
             food_match_id = food_item['id']
             metadata = food_item['metadata']
             food_match_name = metadata['tmp_name']
+            print(f"{food_match_name} metadata {metadata}")
 
-            logger.warning(f"Found food item match for request {food_query}: {food_match_name}, id {food_match_id}")
+            logger.debug(f"Found food item match for request {food_query}: {food_match_name}, id {food_match_id}")
 
             aas = [json.loads(a) for a in metadata['aas']]
             weights = [json.loads(w) for w in metadata['weights']]
@@ -82,8 +83,6 @@ def cli(recipe):
             ingredient = None
             gram_weight = None
 
-            protein_per_100g = metadata['protein_per_100g']
-
             for weight in weights:
                 gram_weight = get_gram_weight(food_query, measure_units_query, measure_amount_query, weight['Msre_Desc'], weight['Gm_Wgt'])
                 if gram_weight is not None:
@@ -94,7 +93,9 @@ def cli(recipe):
                 continue
 
             # calculate total protein grams in queried amount of food
-            total_protein_ing_g = protein_per_100g*gram_weight/100
+            protein_per_g = metadata['protein_per_100g']/100
+            total_protein_ing_g = protein_per_g*gram_weight
+            print(total_protein_ing_g)
 
             ingredient = Ingredient(
                 food_query,
@@ -110,7 +111,7 @@ def cli(recipe):
             ingredients.append(ingredient)
             break
 
-    scored_recipe = Recipe(recipe["id"], recipe["title"], ingredients)
+    scored_recipe = Recipe(recipe["id"], recipe["title"], ingredients, recipe["ingredients"])
 
     if len(ingredients) < len(recipe['ingredients_w_units']) or not scored_recipe.is_scored():
         logger.warning(f"Failed to score all ingredients in recipe {recipe['title']}")

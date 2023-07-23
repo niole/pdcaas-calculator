@@ -1,9 +1,9 @@
-TBSP_GROUP = ['tbs', 'tbsp', 'tablespoons', 'tablespoon', 'tbsps']
-TSP_GROUP = ['tsp', 'teaspoons', 'teaspoon', 'tsps']
-CUP_GROUP = ['cup', 'cups', 'cs', 'c']
-LB_GROUP = ['pound', 'lb', 'lbs', 'pounds']
-OUNCE_GROUP = ['oz', 'ounce', 'ounces']
-GRAMS_GROUP = ['g', 'gram', 'grams']
+TBSP_GROUP = ['tbs', 'tablespoon']
+TSP_GROUP = ['tsp', 'teaspoon']
+CUP_GROUP = ['cup']
+LB_GROUP = ['pound', 'lb']
+OUNCE_GROUP = ['oz', 'ounce']
+GRAMS_GROUP = ['g', 'gram']
 
 UNIT_GROUPS = [
     TBSP_GROUP,
@@ -24,6 +24,7 @@ OUNCE_IN_CUP = 8
 This map's keys are many units and their various spellings and the values are
 lists of other units and their various likely spellings and scalars that you would
 multiply by in order to convert from the units of the key, to the units of the entrie
+
 
 map[unit string] = (unit string, scalar)[]
 """
