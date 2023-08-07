@@ -44,22 +44,12 @@ def insert_measurement_embeddings(providedModel = model):
     
 
 def insert_td_embeddings(providedModel = model):
-    # TODO add td_score metadata
-    #index.delete(deleteAll='true', namespace='td')
     food = db.execute('select distinct * from td_types;').fetchall()
     food_names = [f[0] for f in food]
     td_scores = [{'td_score': f[1]} for f in food]
     data = list(zip(food_names, [m.tolist() for m in providedModel.encode(food_names)], td_scores))
 
     upload_chunks(data, 'td')
-
-# TODO maybe we can delete?
-def insert_food_info_embeddings(providedModel = model):
-    food = db.execute('select distinct NDB_No, Long_Desc from food_info_types;').fetchall()
-    food_names = [f[1] for f in food]
-    data = list(zip([str(f[0]) for f in food], [m.tolist() for m in providedModel.encode(food_names)]))
-
-    upload_chunks(data, 'info')
 
 """
 Embeds the Long_Desc of all food_info_types food items and adds the weights, amino acid data, and TD score as metadata
@@ -85,13 +75,14 @@ in order to make sure that we can score things properly, we need to fine-tune th
 5. run 2 rounds of scoring for the recipes in sqlite, by then you will have the recipes that were immediately scorable and the recipes that are not possible to complete given the state of the food db, the current recipes, the sentence transformer
 6. evaluate the unsuccessfullly scored recipes
 """
-def insert_food_embeddings_with_metadata():
-    food_item_transformer = SentenceTransformer('./food_item_transformer')
+def insert_food_embeddings_with_metadata(providedModel = model):
+    food_item_transformer = providedModel
 
     # NDB_No -> { weights, aas, td_score, protein_per_100g }
     upsert_map = {}
     grouped_food = {}
     weight_result = {}
+
     # metadata = { protein_g: number, amino_acids: []{name: str, per100g: int}, td_score: number, weights: []{Msre_Desc: string, Gm_Weight: int}}
     food = list(db.execute("select  NDB_No, Nutr_Val, Long_Desc, NutrDesc from food_info_types where NutrDesc in ('Protein',"+EAAS_QUERY_STRING+");").fetchall())
     grouped_food = group_to_dict(groupby(food, lambda x: x[0]))
@@ -112,7 +103,6 @@ def insert_food_embeddings_with_metadata():
             d = all_protein_data[0]
             upsert_map[id]['tmp_name'] = d[2]
 
-            # TODO how good are the embeddings for the TD score to the nutritional food Long_Desc?
             td_result = find_one_vector_query(d[2], 'td')
             if td_result is not None and "td_score" in td_result["metadata"]:
                 score_result = td_result["metadata"]["td_score"]
@@ -137,21 +127,56 @@ def insert_food_embeddings_with_metadata():
     upserts = list(zip([i[0] for i in id_metadata], embeddings, [i[1] for i in id_metadata]))
     upload_chunks(upserts, 'info')
 
-def embed_recipe_names():
-    pass
+def insert_recipes(recipe_paths, providedModel = model):
+    def get_metadata(r):
+        breakdown = r["nutrient_breakdown"]["protein_breakdown"]
+        return {
+            "percent_complete_digestible_protein": breakdown["percent_complete_digestible_protein"],
+            "total_complete_digestible_protein_g": breakdown["total_complete_digestible_protein_g"],
+            "total_protein_g": breakdown["total_protein_g"],
+        }
+
+    for path in recipe_paths:
+        with open(path, 'r') as file:
+            recipes = json.loads(file.read())
+            titles = [r['title'] for r in recipes if r is not None]
+
+            metadata = [get_metadata(r) for r in recipes]
+            upserts = list(zip(titles, encode_str_list(titles, providedModel), metadata))
+            upload_chunks(upserts, 'recipes')
+
+"""
+returns the basic model or the one located on disk
+"""
+def get_model(model_path):
+    if model_path is not None:
+        return SentenceTransformer(model_path)
+    else:
+        return model
+
 
 @click.command()
+@click.option('--model_path', type=str, required=False)
+@click.option('--embed_weights', is_flag=True, default=False)
+@click.option('--embed_td', is_flag=True, default=False)
 @click.option('--embed_food_items', is_flag=True, default=False)
-def main(embed_food_items):
+@click.option('--embed_recipes', is_flag=True, default=False)
+@click.option('--recipe_paths', multiple=True, default=[])
+def main(model_path, embed_weights, embed_td, embed_food_items, embed_recipes, recipe_paths):
+    resolved_model = get_model(model_path)
+
+    if embed_recipes:
+        insert_recipes(recipe_paths, providedModel=resolved_model)
+
+    if embed_weights:
+        insert_measurement_embeddings(providedModel=resolved_model)
+
+    if embed_td:
+        insert_td_embeddings(providedModel=resolved_model)
+
     if embed_food_items:
-        insert_food_embeddings_with_metadata()
+        insert_food_embeddings_with_metadata(providedModel=resolved_model)
 
 
 if __name__ == "__main__":
     main()
-
-#insert_td_embeddings()
-#index.delete(deleteAll='true', namespace='info')
-#insert_food_info_embeddings()
-#insert_measurement_embeddings()
-#insert_food_embeddings_with_metadata()

@@ -2,19 +2,21 @@
 
 User says "give me this kind of meal" and we generate a recipe that fits that description and then we tell you the protein content.
 
-- user input: Make me a balanced <kind> meal for <meal-time>. My bodyweight in kg is <count>.
-- Text input data goes to chatgpt, which is prompted to generate meal names and then from the meal name, a couple recipes are generated
+- ask chatgpt to give us some meal names given the user preferences
+- embed all recipe names in vector db and match against the meal names returned by chatgpt
+- user picks a recipe, we provide protein information. the protein information lives in a database, but we still use the vector db for name matching. 
+we could put everything on the vector, however we want to go an extra step and recommend other foods that go well in order to complete your day of meals and vector databases
+don't offer computational power like that. in order to round out a meal you need a notion of snacks or complementary dishes....maybe the user can say give me <this kind> of dish to round out the meal
+and i give them some options? by checking in the recipe embeddings and then getting the nutrition information and show it to the user in a way that lets them choose the right meal for them
+- I would also want to know, how well does this conform to my health goals? does it conform to a vegan diet, mediterranean diet?
+
+- should we score every ingredient and then embed the individually scored ingredients and stick those in the vector db? then instead of scoring 
 
 what stats?
 - total grams of digestible balanced protein
 - percent of protein that was digestible and balanced
 - report of what amino acids they were deficient in
 - recommendation on what foods to eat
-
-# feedback
-- no entry for nutritional yeast in food_info_types
-- no entry for cashew milk
-- we're missing some food items that would be good to have
 
 # TODO
 - 7/15: train a new sentence transformer that better matches the ingredients in the scraped recipes to the food in the nutritional database and then re-embed the food item vectors into the vector database
@@ -56,7 +58,7 @@ in order to make sure that we can score things properly, we need to fine-tune th
 
 
 - try the open ai functions API to do parsing into JSON repsonse
-- put food items into db: cassava flour, nutritional yeast
+- create tables in squlite for the recipe, the nutritional information for the ingredients, and whether or not the recipe is completely scored (from 0 - 1)
 - create new vector index namespace called 'recipes' and embed the json and save the json as metadata in the db
 - update the web app to get the recipes that best match the openai generated meal names and render them in the UI
 

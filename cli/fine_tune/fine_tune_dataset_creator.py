@@ -60,36 +60,74 @@ class IngredientScorer(InteractiveDataPairMembershipScorer):
 
         with open(self.outpath, 'a') as f:
             f.write(json.dumps({
-                "name": name,
+                "query": name,
                 "match": match_name,
-                "label": score,
+                "score": score,
+            }) + "\n")
+
+class AutoVeganIngredientScorer:
+    def __init__(self, outpath):
+        self.outpath = outpath
+
+    def run(self):
+        vegan_identifiers = ['substitute', 'vegetarian', 'vegan', 'veggie', 'veg', 'veggie based', 'vegetable based',
+                             'dairy-free', 'dairy free', 'non-dairy', 'non dairy', 
+                             'meat-free', 'meat free', 'meatless', 'no meat', 'soy', 'soy protein', 'soy based', 'cashew based', 'almond based', 'pea based', 'tofu based',
+                             'almond', 'almond protein', 'cashew', 'cashew protein', 'pea protein', 'pea', 'tofu', 'seitan based',
+                             'seitan', 'vegetable protein', 'tofurkey']
+        meat_substitute_items = ['cream', 'creamer', 'butter', 'cheese', 'milk', 'eggs', 'meat', 'burger', 'patty', 'patties', 'sausage', 'chicken', 'turkey', 'beef']
+
+        for sub in meat_substitute_items:
+            for id1 in vegan_identifiers:
+                vegan_food_1 = f"{id1} {sub}"
+                self._out((vegan_food_1, sub, 0))
+
+                for id2 in vegan_identifiers:
+                    vegan_food_2 = f"{id2} {sub}"
+
+                    self._out((vegan_food_1, vegan_food_2, 1))
+
+    def _out(self, scored_data):
+        """
+        saves the scored data
+        """
+        (name, match_name, score) = scored_data
+
+        with open(self.outpath, 'a') as f:
+            f.write(json.dumps({
+                "query": name,
+                "match": match_name,
+                "score": score,
             }) + "\n")
 
 @click.command()
+@click.option('--auto', is_flag=True, default=False)
 @click.option('--inpaths', '-i', multiple=True, default=[BAREFOOT_CONTESSA_JSON, OH_SHE_GLOWS_JSON])
 @click.option('--outpath', '-o', type=str, default='open_ai/data')
 @click.option('--cache_outpath', '-co', type=str)
-def main(inpaths, outpath, cache_outpath = None):
+def main(auto, inpaths, outpath, cache_outpath = None):
 
-    if not os.path.isdir(outpath):
-        raise Exception(f'{outpath} is not a directory')
+    if auto:
+        try:
+            AutoVeganIngredientScorer(outpath).run()
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Failed to score recipees: {e}")
+    else:
+        all_recipes = []
+        for inpath in inpaths:
+            with open(inpath, 'r') as file:
+                recipes = json.loads(file.read())
+                all_recipes += recipes
 
-    outpath = f'{outpath}/training_data.json'
+        scorer = IngredientScorer(all_recipes, outpath, cache_outpath)
 
-    all_recipes = []
-    for inpath in inpaths:
-        with open(inpath, 'r') as file:
-            recipes = json.loads(file.read())
-            all_recipes += recipes
-
-    scorer = IngredientScorer(all_recipes, outpath, cache_outpath)
-
-    try:
-        scorer.run()
-    except Exception as e:
-        traceback.print_exc()
-        print(f"Failed to score recipees: {e}")
-        scorer.cache.backup()
+        try:
+            scorer.run()
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Failed to score recipees: {e}")
+            scorer.cache.backup()
 
 if __name__ == "__main__":
     main()

@@ -23,7 +23,7 @@ logger = multiprocessing.get_logger()
 logger.setLevel(logging.WARNING)
 logging.basicConfig(level=logging.WARNING)
 
-model = SentenceTransformer('./transformers/food_item_transformer')
+model = SentenceTransformer('./transformers/vegan_improved_food_item_transformer')
 
 BAREFOOT_CONTESSA_JSON = 'open_ai/data/barefootcontessa_array.json'
 OH_SHE_GLOWS_JSON = 'open_ai/data/ohsheglows_array.json'
@@ -47,7 +47,7 @@ find closest match for ingredient in food_info or td_types: put all food names i
 and do a search
 """
 def cli(recipe):
-    logger.warning(f"Computing protein data for recipe{recipe['title']}")
+    logger.warning(f"Computing protein data for recipe {recipe['title']}")
 
     ingredients = []
     for ing in recipe['ingredients_w_units']:
@@ -69,7 +69,6 @@ def cli(recipe):
             food_match_id = food_item['id']
             metadata = food_item['metadata']
             food_match_name = metadata['tmp_name']
-            print(f"{food_match_name} metadata {metadata}")
 
             logger.debug(f"Found food item match for request {food_query}: {food_match_name}, id {food_match_id}")
 
@@ -95,7 +94,6 @@ def cli(recipe):
             # calculate total protein grams in queried amount of food
             protein_per_g = metadata['protein_per_100g']/100
             total_protein_ing_g = protein_per_g*gram_weight
-            print(total_protein_ing_g)
 
             ingredient = Ingredient(
                 food_query,
@@ -128,6 +126,7 @@ def add_protein_data(recipe, outpath):
         scored_recipe = cli(recipe)
 
         with open(outpath, 'a') as outfile:
+            # TODO instead of writing the scored recipe to json, maybe save it to a database?
             outfile.write(json.dumps(scored_recipe.to_json()))
 
     except Exception as e:
@@ -144,12 +143,12 @@ def main(inpaths, outpath):
         if not os.path.isdir(outpath):
             raise Exception(f'{outpath} is not a directory')
 
-        outpath = f'{outpath}/{out_fn}'
+        outpath_file = f'{outpath}/{out_fn}'
 
         with open(inpath, 'r') as file:
             recipes = json.loads(file.read())
             with Pool(5) as p:
-                p.map(partial(add_protein_data, outpath=outpath), recipes)
+                p.map(partial(add_protein_data, outpath=outpath_file), recipes)
 
 if __name__ == "__main__":
     main()
