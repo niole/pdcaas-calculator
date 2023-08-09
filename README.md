@@ -33,6 +33,9 @@ RECIPE_MATCH_API_SERVER_DOMAIN="http://127.0.0.1:8000"
 # download and put the following transformers into the transformers directory
 cli/transformers/vegan_improved_food_item_transformer
 cli/transformers/food_item_transformer/
+
+# install the dependencies in the nutritional nutrition-assistant
+npm i
 ```
 
 # Update the vector database
