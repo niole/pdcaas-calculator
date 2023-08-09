@@ -9,11 +9,11 @@ index = pinecone.Index("food")
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-def find_limit_vector_query(query, limit, namespace, providedModel = model):
+def find_limit_vector_query(query, limit, namespace, providedModel = model, include_values=True):
     matches = index.query(
         vector=providedModel.encode(query).tolist(),
         top_k=limit,
-        include_values=True,
+        include_values=include_values,
         namespace=namespace,
         include_metadata=True
     )['matches']

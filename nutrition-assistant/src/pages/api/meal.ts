@@ -1,12 +1,11 @@
 import { OpenAI } from "langchain/llms/openai";
-import R from 'ramda';
-import { Either, Recipe } from '../../types';
-import jsonParse from '../../utils/jsonParse';
 import { LLMChain } from "langchain/chains";
-import recipePrompt, {t} from '../../utils/prompts/recipePrompt';
 import mealNamesPrompt from '../../utils/prompts/foodNamesPrompt';
+import { RecipeClient } from '../../utils/recipe-client/index';
 import dotenv from 'dotenv';
 dotenv.config();
+
+const recipeClient = new RecipeClient({ BASE: process.env.RECIPE_MATCH_API_SERVER_DOMAIN as string }).default;
 
 const model = new OpenAI({ 
   openAIApiKey: process.env.OPENAI_API_KEY, // In Node.js defaults to process.env.OPENAI_API_KEY
@@ -18,29 +17,19 @@ export default async function handler(req, res) {
   const { mealtime, preference } = body;
 
   try {
-//    const mealNamesResp = await new LLMChain({ llm: model, prompt: mealNamesPrompt, verbose: true }).call({ 
-//      mealtime,
-//      preference,
-//    });
-
-    const mealNames = ["Fruit Salad","Veggie Omelette", "Bacon and Egg Toast"] // JSON.parse(mealNamesResp.text);
-
-    const recipes: [string, Either<Recipe, Error>][] = await Promise.all(mealNames.map(mealname =>
-      model.call(t(mealname))
-    ))
-    .then(rs => {
-      return R.zip(mealNames, rs.map(jsonParse<Recipe>));
+    const mealNamesResp = await new LLMChain({ llm: model, prompt: mealNamesPrompt, verbose: true }).call({ 
+      mealtime,
+      preference,
     });
 
-    const [parsedRecipes, failedParseRecipes] = R.partition(R.pipe(R.prop(1), R.prop('kind'), R.whereEq('success')))(recipes);
+    const mealNames = JSON.parse(mealNamesResp.text);
 
-    failedParseRecipes.forEach(([name, r]: [string, Either<Recipe, Error>]) => {
-      console.info(`Recipe generation for mealname ${name} failed. `, r.value);
-    })
+    const recipeRecommendations = 
+      await recipeClient.recipeMatchesMetadataRecipeMatchesPost({ recipe_names: mealNames });
 
-    console.log(parsedRecipes);
-    //const recipeSummaries = [];
-    return res.status(200);
+    console.log(recipeRecommendations)
+
+    return res.status(200).json(recipeRecommendations);
   } catch (error) {
     console.error(error);
     return res.status(500).json(error);

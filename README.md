@@ -24,18 +24,40 @@ pip install -r requirements.txt
 
 # unzip the database
 unzip fooddb.zip
+
+# create a .env file
+PINECONE_API_KEY=...
+OPENAI_API_KEY=...
+RECIPE_MATCH_API_SERVER_DOMAIN="http://127.0.0.1:8000"
+
+# download and put the following transformers into the transformers directory
+cli/transformers/vegan_improved_food_item_transformer
+cli/transformers/food_item_transformer/
 ```
 
-# API Examples
+# Update the vector database
 
+Populate the vector db namespaces by running the following commands in order:
 ```sh
-python cli.py
+python create_food_info_vector_tables.py --model_path transformers/vegan_improved_food_item_transformer --embed_weights
+python create_food_info_vector_tables.py --model_path transformers/vegan_improved_food_item_transformer --embed_td
+python create_food_info_vector_tables.py --model_path transformers/vegan_improved_food_item_transformer --embed_food_items
 ```
 
-# Munge data
-
+# Generate recipes with nutritional information
 ```sh
-./create_all_csvs.sh
+# may take a while
+python cli.py -i <scraped recipe data array json> -o open_ai/data
+```
+
+# Update recipes namespace with vectors from recipes with nutritional data
+```sh
+python create_food_info_vector_tables.py --model_path transformers/vegan_improved_food_item_transformer --embed_recipes --recipe_paths open_ai/data/<recipe with nutrition info>
+```
+
+# Run the recipe server
+```sh
+uvicorn server:app --reload
 ```
 
 # Sources
