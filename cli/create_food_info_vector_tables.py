@@ -130,10 +130,23 @@ def insert_food_embeddings_with_metadata(providedModel = model):
 def insert_recipes(recipe_paths, providedModel = model):
     def get_metadata(r):
         breakdown = r["nutrient_breakdown"]["protein_breakdown"]
+
         return {
-            "percent_complete_digestible_protein": breakdown["percent_complete_digestible_protein"],
-            "total_complete_digestible_protein_g": breakdown["total_complete_digestible_protein_g"],
-            "total_protein_g": breakdown["total_protein_g"],
+                "total_complete_digestible_protein_g": breakdown["total_complete_digestible_protein_g"],
+                "total_protein_g": breakdown["total_protein_g"],
+                "total_eaa_g": breakdown["total_eaa_g"],
+                "limiting_amino_acid_name": breakdown["limiting_amino_acid_name"],
+                "limiting_amino_acid_g": breakdown["limiting_amino_acid_g"],
+                "ingredients": [i["name"] for i in breakdown["ingredient_summaries"]],
+                "digestible_eaa_Tryptophan_g": breakdown["digestible_eaa_Tryptophan_g"],
+                "digestible_eaa_Threonine_g": breakdown["digestible_eaa_Threonine_g"],
+                "digestible_eaa_Isoleucine_g": breakdown["digestible_eaa_Isoleucine_g"],
+                "digestible_eaa_Leucine_g": breakdown["digestible_eaa_Leucine_g"],
+                "digestible_eaa_Lysine_g": breakdown["digestible_eaa_Lysine_g"],
+                "digestible_eaa_Methionine_g": breakdown["digestible_eaa_Methionine_g"],
+                "digestible_eaa_Phenylalanine_g": breakdown["digestible_eaa_Phenylalanine_g"],
+                "digestible_eaa_Valine_g": breakdown["digestible_eaa_Valine_g"],
+                "digestible_eaa_Histidine_g": breakdown["digestible_eaa_Histidine_g"]
         }
 
     for path in recipe_paths:

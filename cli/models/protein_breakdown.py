@@ -3,9 +3,12 @@ from essential_amino_acid_utils import EAA_PROPORTIONS
 
 class ProteinBreakdown:
     def __init__(self, ingredients):
-        self.percent_complete_digestible_protein = None
         self.total_complete_digestible_protein_g = None
         self.total_protein_g = None
+        self.total_eaa_g = None
+        self.limiting_amino_acid_name = None
+        self.limiting_amino_acid_g = None
+        self.essential_amino_acid_g = []
         self.ingredient_summaries = None
 
         self._build_breakdown(ingredients)
@@ -14,39 +17,71 @@ class ProteinBreakdown:
         total_achievable_protein_g = 0
         protein_g = 0
         ingredient_summaries = []
+        total_eaa_g = 0
+        eaa_gs = dict([(eaa, 0) for eaa in EAA_PROPORTIONS.keys()])
 
         for ingredient in ingredients:
-            total_achievable_protein_food_g = 0
+            protein_summary = IngredientProteinSummary(ingredient)
+            ingredient_summaries.append(protein_summary)
 
-            ingredient_summaries.append(IngredientProteinSummary(ingredient))
+            protein_g += protein_summary.total_protein_g
+            total_eaa_g += protein_summary.total_eaa_g
 
-            total_achievable_protein_g += total_achievable_protein_food_g
-            protein_g += ingredient.total_protein_g
+            for aa in ingredient.aas:
+                # add in td score now, only add to the amino acid data, because
+                # that will be used to calculate real protein
+                eaa_gs[aa.name] += aa.total_protein_g * protein_summary.td
+
+        total_eaa_g = sum(eaa_gs.values())
+        # get the limiting amino acid and total digestible protein
+
+        lowest_aa = None
+        lowest_aa_frac_of_expected = None
+        if total_eaa_g > 0:
+            for (name, gs) in eaa_gs.items():
+                frac = gs/total_eaa_g
+                if lowest_aa_frac_of_expected is None or frac < lowest_aa_frac_of_expected:
+                    lowest_aa = name
+                    lowest_aa_frac_of_expected = frac
+
+        if lowest_aa is not None:
+            self.limiting_amino_acid_name = lowest_aa
+            self.limiting_amino_acid_g = eaa_gs[lowest_aa]
+            self.total_complete_digestible_protein_g = eaa_gs[lowest_aa]/EAA_PROPORTIONS[lowest_aa]
 
         self.ingredient_summaries = ingredient_summaries
-        self.percent_complete_digestible_protein = total_achievable_protein_g/protein_g
-        self.total_complete_digestible_protein_g = total_achievable_protein_g
         self.total_protein_g = protein_g
+        self.total_eaa_g = total_eaa_g
+        self.essential_amino_acid_g = eaa_gs
 
     def is_scored(self):
         unscored_summaries = [s for s in self.ingredient_summaries if not s.is_scored()]
         return len(unscored_summaries) == 0
 
     def to_json(self):
-        return {
-            "percent_complete_digestible_protein": self.percent_complete_digestible_protein,
+        result = {
             "total_complete_digestible_protein_g": self.total_complete_digestible_protein_g,
             "total_protein_g": self.total_protein_g,
+            "total_eaa_g": self.total_eaa_g,
+            "limiting_amino_acid_name": self.limiting_amino_acid_name,
+            "limiting_amino_acid_g": self.limiting_amino_acid_g,
             "ingredient_summaries": [i.to_json() for i in self.ingredient_summaries],
         }
+
+        for (name, g) in self.essential_amino_acid_g.items():
+            result[f"digestible_eaa_{name}_g"] = g
+
+        return result
 
 class IngredientProteinSummary:
     def __init__(self, ingredient):
         self.ingredient_name = ingredient.name
         self.food_match = ingredient.food_match()
+        self.total_eaa_g = self._get_total_eaa_g(ingredient)
         self.limiting_aa_details = self._get_limiting_aa(ingredient)
         self.total_protein_g = ingredient.total_protein_g
-        self.total_balanced_protein_g = None
+        self.total_achievable_protein_food_g = None
+        self.td = ingredient.td_score
         self.aas = ingredient.aas
 
         self._build(ingredient)
@@ -67,7 +102,9 @@ class IngredientProteinSummary:
             "food_match": self.food_match,
             "limiting_aa_details": limiting_aa_details,
             "total_protein_g": self.total_protein_g,
-            "total_balanced_protein_g": self.total_balanced_protein_g,
+            "total_achievable_protein_food_g": self.total_achievable_protein_food_g,
+            "total_eaa_g": self.total_eaa_g,
+            "td": self.td,
             "aas": [a.to_json() for a in self.aas],
         }
 
@@ -75,26 +112,36 @@ class IngredientProteinSummary:
         if self.limiting_aa_details is not None:
             limiting_aa = self.limiting_aa_details.name
             total_limiting_aa_g = self.limiting_aa_details.total_protein_g
-            self.total_achievable_protein_food_g = ingredient.td_score * min(total_limiting_aa_g / EAA_PROPORTIONS[limiting_aa], ingredient.total_protein_g)
 
+            self.total_achievable_protein_food_g = ingredient.td_score * total_limiting_aa_g / EAA_PROPORTIONS[limiting_aa]
+        elif self.total_protein_g > 0:
+            self.total_achievable_protein_food_g = ingredient.td_score * self.total_protein_g
+
+    """
+    verifies that all essential amino acid data exists
+    """
+    def _verify_eaa_data(self, ingredient) -> bool:
+        aa_names = [a.name for a in ingredient.aas]
+        return all([key in aa_names for key in EAA_PROPORTIONS.keys()])
+
+    def _get_total_eaa_g(self, ingredient):
+        eaas = [aa for aa in ingredient.aas if aa.name in EAA_PROPORTIONS.keys()]
+        return sum([aa.total_protein_g for aa in eaas])
+
+    """
+    finds the amino acid whose proportional amount is lower that it should be in comparison
+    to the amounts of all essential amino acids
+    """
     def _get_limiting_aa(self, ingredient):
-        # calculating percentage complete protein
-        # if an aa comes in low w/ respect to total protein, then it is a limiting factor
-        # a limiting aa is one that when considered in proportion to the total amount of protein, has the lowest score
+        lowest_aa = None
+        if self._verify_eaa_data(ingredient) and self.total_eaa_g > 0:
+            eaas = [aa for aa in ingredient.aas if aa.name in EAA_PROPORTIONS.keys()]
 
-        total_protein_g = ingredient.total_protein_g
-        percent_expected = []
-        for aa in ingredient.aas:
-            # the expected proportion of the ingredients protein in order for it to be complete
-            expected = EAA_PROPORTIONS[aa.name]*total_protein_g
-            actual = aa.total_protein_g
-            if actual > 0 and expected > 0:
-                percent_expected.append((aa.name, actual/expected))
-            else:
-                percent_expected.append((aa.name, 0))
-
-        if len(percent_expected) > 0:
-            limiting_aa = min(percent_expected, key = lambda k: k[1])[0]
-            return next((a for a in ingredient.aas if a.name == limiting_aa), None)
-        return None
-
+            lowest_aa = None
+            lowest_aa_frac_of_expected = None
+            for aa in eaas:
+                frac = aa.total_protein_g/self.total_eaa_g
+                if lowest_aa_frac_of_expected is None or frac < lowest_aa_frac_of_expected:
+                    lowest_aa = aa
+                    lowest_aa_frac_of_expected = frac
+        return lowest_aa

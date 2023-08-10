@@ -15,7 +15,6 @@ from get_gram_weight import get_gram_weight
 from models.amino_acid import AminoAcid
 from models.ingredient import Ingredient
 from models.recipe import Recipe
-from essential_amino_acid_utils import EAA_PROPORTIONS
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -103,7 +102,7 @@ def cli(recipe):
                 total_protein_ing_g,
                 measure_amount_query,
                 measure_units_query,
-                [AminoAcid(f['name'], total_protein_ing_g*f['per100g']/100) for f in aas]
+                [AminoAcid(f['name'], gram_weight*f['per100g']/100) for f in aas]
             )
 
             ingredients.append(ingredient)
