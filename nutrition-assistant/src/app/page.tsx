@@ -7,6 +7,8 @@ import { RecipeMatchesResponse, RecipeNutritionSummary } from '../utils/recipe-c
 
 const inputClasses = "outline rounded outline-1";
 
+const defaultPreferenceValue = "I want to eat healthy, lots of fruits and veggies.";
+
 const testData = [["Vegan Oatmeal Pancakes",[{"id":"Easy Vegan and Gluten-Free Pancakes (Strawberry Shortcake w/ Whipped Cream)","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":33.530260000000006},"score":0.509036779,"values":[]},{"id":"Jumbo Chickpea Pancake - A High Protein, Filling Vegan Breakfast or Lunch!","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":11.18518375},"score":0.496326268,"values":[]},{"id":"Healthy Chocolate Chip Cookie Pota'Dough Dip! Vegan, Gluten-Free, Bean-free, Soy-free, and optionally Nut-free.","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":20.202009498941422},"score":0.443739474,"values":[]}]],["Tofu Scramble Burrito",[{"id":"High Protein Vegan Breakfast Burrito","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":40.04271249999999},"score":0.454664826,"values":[]},{"id":"Grilled Tofu with Pineapple Salsa and Coconut Rice","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":10.582175000000001},"score":0.438385248,"values":[]},{"id":"Tex Mex Spaghetti Squash with Black Bean Guacamole","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":22.86011125},"score":0.379612625,"values":[]}]],["Vegan French Toast",[{"id":"Challah French Toast","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":49.339522500000015},"score":0.514613867,"values":[]},{"id":"French Toast Bread Pudding","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":88.2532075},"score":0.47838226,"values":[]},{"id":"Heather's Toasted Super Seed Power Bread from Yum Universe (Vegan, GF)","metadata":{"percent_complete_digestible_protein":0,"total_complete_digestible_protein_g":0,"total_protein_g":117.9299175},"score":0.445821047,"values":[]}]]];
 
 
@@ -18,7 +20,7 @@ const testData = [["Vegan Oatmeal Pancakes",[{"id":"Easy Vegan and Gluten-Free P
 const MealPreferenceUI = props => {
   return (
     <>
-      Describe your meal preferences: <textarea className={inputClasses} onChange={e => props.setMealPreference(e.target.value)} rows={3} placeholder="I want to eat healthy, lots of fruits and veggies." />
+      Describe your meal preferences: <textarea className={inputClasses} onChange={e => props.setMealPreference(e.target.value)} rows={3} defaultValue={defaultPreferenceValue} />
       Meal time: <input className={inputClasses}  onChange={e => props.setMealTime(e.target.value)} placeholder="e.g breakfast, snack..." />
       <button onClick={props.handleSubmit} className="px-4 py-2 font-semibold text-sm bg-cyan-500 text-white rounded-full shadow-sm">
         Submit
@@ -37,10 +39,10 @@ function formatRecipeSummaries(resp: RecipeMatchesResponse): RecipeNutritionSumm
 }
 
 export default function Home() {
-  const [mealPreference, setMealPreference] = React.useState<string | undefined>();
+  const [mealPreference, setMealPreference] = React.useState<string>(defaultPreferenceValue);
   const [mealTime, setMealTime] = React.useState<string | undefined>();
   const [weight, setWeight] = React.useState<number | undefined>();
-  const [recipeRecommendations, setRecipeRecommendations] = React.useState<RecipeNutritionSummaryWithKey[]>(formatRecipeSummaries({ data: testData }));
+  const [recipeRecommendations, setRecipeRecommendations] = React.useState<RecipeNutritionSummaryWithKey[]>(formatRecipeSummaries({ data: [] }));
 
   const handleSubmit = async () => {
     const fields = [["meal preference", mealPreference], ["meal time", mealTime]];
@@ -49,7 +51,6 @@ export default function Home() {
         const fieldNames = emptyFields.map(f => f[0]).join(", ");
         alert(`Please fill in the ${fieldNames} field(s).`);
     } else {
-      // TODO generate some meal names, then generate recipes for each meal and then return the one with the highest protein content
       fetch('http://localhost:3000/api/meal', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mealtime: mealTime, preference: mealPreference, mealcount: 1}) })
       .then((x: any) => x.json())
       .then((x: RecipeMatchesResponse) => {
@@ -67,8 +68,16 @@ export default function Home() {
             key={recipe.key}
             recipeTitle={recipe.id}
             gramsDigestibleProtein={recipe.total_complete_digestible_protein_g}
-            percentDigestibleProtein={recipe.percent_complete_digestible_protein}
             gramsProtein={recipe.total_protein_g}
+            digestible_eaa_Histidine_g={recipe.digestible_eaa_Histidine_g}
+            digestible_eaa_Isoleucine_g={recipe.digestible_eaa_Isoleucine_g}
+            digestible_eaa_Leucine_g={recipe.digestible_eaa_Leucine_g}
+            digestible_eaa_Lysine_g={recipe.digestible_eaa_Lysine_g}
+            digestible_eaa_Methionine_g={recipe.digestible_eaa_Methionine_g}
+            digestible_eaa_Phenylalanine_g={recipe.digestible_eaa_Phenylalanine_g}
+            digestible_eaa_Threonine_g={recipe.digestible_eaa_Threonine_g}
+            digestible_eaa_Tryptophan_g={recipe.digestible_eaa_Tryptophan_g}
+            digestible_eaa_Valine_g={recipe.digestible_eaa_Valine_g}
            />
         )) : null}
       </div>

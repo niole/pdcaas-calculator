@@ -1,10 +1,12 @@
 import sqlite3
+import copy
 import click
 from itertools import groupby
 import json
 from sentence_transformers import SentenceTransformer
 import pinecone
 from pinecone_client import find_one_vector_query
+import numpy as np
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 db = sqlite3.connect('food.db')
@@ -14,15 +16,32 @@ index = pinecone.Index("food")
 essential_amino_acids = ["Tryptophan","Threonine","Isoleucine","Leucine","Lysine","Methionine","Phenylalanine","Valine","Histidine"]
 EAAS_QUERY_STRING = ','.join(["'" + a + "'" for a in essential_amino_acids])
 
+def clean_chunk(chunk):
+    def clean_single_chunk(c):
+        if len(c) == 3:
+            (id, vector, metadata) = c
+            result = {}
+            for (key, value) in metadata.items():
+                if value is not None:
+                    result[key] = value
+            return (id, vector, result)
+        return c
+
+    return [clean_single_chunk(c) for c in chunk]
+
 """
 data = list (id, embedding)
 """
 def upload_chunks(data, namespace):
-    c_size = 500
+    c_size = 1 # 500
     for i in range(0, len(data), c_size):
-        chunk = data[i:i+c_size]
+        chunk = clean_chunk(data[i:i+c_size])
         if len(chunk) > 0:
-            index.upsert(chunk, namespace=namespace)
+            try:
+                index.upsert(chunk, namespace=namespace)
+            except Exception as e:
+                print(f"Something went wrong while upserting to namespace {namespace}: {e}")
+                print(chunk)
 
 # TODO allow model to be pluggable
 def encode_str_list(data, providedModel = model):
@@ -130,31 +149,18 @@ def insert_food_embeddings_with_metadata(providedModel = model):
 def insert_recipes(recipe_paths, providedModel = model):
     def get_metadata(r):
         breakdown = r["nutrient_breakdown"]["protein_breakdown"]
+        result = copy.deepcopy(breakdown)
 
-        return {
-                "total_complete_digestible_protein_g": breakdown["total_complete_digestible_protein_g"],
-                "total_protein_g": breakdown["total_protein_g"],
-                "total_eaa_g": breakdown["total_eaa_g"],
-                "limiting_amino_acid_name": breakdown["limiting_amino_acid_name"],
-                "limiting_amino_acid_g": breakdown["limiting_amino_acid_g"],
-                "ingredients": [i["name"] for i in breakdown["ingredient_summaries"]],
-                "digestible_eaa_Tryptophan_g": breakdown["digestible_eaa_Tryptophan_g"],
-                "digestible_eaa_Threonine_g": breakdown["digestible_eaa_Threonine_g"],
-                "digestible_eaa_Isoleucine_g": breakdown["digestible_eaa_Isoleucine_g"],
-                "digestible_eaa_Leucine_g": breakdown["digestible_eaa_Leucine_g"],
-                "digestible_eaa_Lysine_g": breakdown["digestible_eaa_Lysine_g"],
-                "digestible_eaa_Methionine_g": breakdown["digestible_eaa_Methionine_g"],
-                "digestible_eaa_Phenylalanine_g": breakdown["digestible_eaa_Phenylalanine_g"],
-                "digestible_eaa_Valine_g": breakdown["digestible_eaa_Valine_g"],
-                "digestible_eaa_Histidine_g": breakdown["digestible_eaa_Histidine_g"]
-        }
+        del result["ingredient_summaries"]
+
+        return result
 
     for path in recipe_paths:
         with open(path, 'r') as file:
             recipes = json.loads(file.read())
             titles = [r['title'] for r in recipes if r is not None]
 
-            metadata = [get_metadata(r) for r in recipes]
+            metadata = [get_metadata(r) for r in recipes if len(r["ingredients"]) > 0]
             upserts = list(zip(titles, encode_str_list(titles, providedModel), metadata))
             upload_chunks(upserts, 'recipes')
 
