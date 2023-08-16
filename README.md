@@ -63,6 +63,11 @@ python create_food_info_vector_tables.py --model_path transformers/vegan_improve
 uvicorn server:app --reload
 ```
 
+# Add recipes to food.db, the sqlite3 db 
+```sh
+python add_recipes_to_db.py -i recipes_1.json -i recipes_2.json
+```
+
 # Sources
 If you want to work with the csv data, unzip sources.zip into the sources/ directory
 
