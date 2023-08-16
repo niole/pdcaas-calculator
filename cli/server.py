@@ -6,7 +6,10 @@ import json
 from pinecone_client import find_limit_vector_query
 from sentence_transformers import SentenceTransformer
 from server_api.requests import *
-from server_api.responses import to_recipes_json, RecipeMatchesResponse
+from server_api.responses import *
+from engine import *
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 model = SentenceTransformer('./transformers/vegan_improved_food_item_transformer')
 
@@ -26,3 +29,16 @@ def recipe_matches_metadata(body: RecipeMatchesRequest):
 
     response =  list(zip(recipe_names, to_recipes_json(found_recipes)))
     return { 'data': response }
+
+"""
+gets the recipes according to a filter
+"""
+@app.post("/recipe/list", response_model=RecipeListResponse)
+def recipe_list(body: GetRecipesRequest):
+    recipe_names = body.recipe_names
+
+    with Session(engine) as session:
+        stmt = select(Recipe).where(Recipe.title.in_(recipe_names))
+        result = session.execute(stmt)
+        data = [to_recipe_response(o) for o in result.scalars()]
+        return { 'data': data }
