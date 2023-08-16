@@ -64,9 +64,6 @@ in order to make sure that we can score things properly, we need to fine-tune th
 
 # Bugs
 - matches oats for rolled oats. Oats has a much higher protein content than rolled oats, so not quite
-- fine tune units transformer
-
-
-id = recipename + origin
-embedding
-metadata = original recipe JSON, parsed ingredients JSON, protein information?
+- matches unhealthy things when user asks for health things
+- matches non-vegan things when user asks for vegan things
+- need instructions on the recipe and should include the raw ingredient list in sqlite

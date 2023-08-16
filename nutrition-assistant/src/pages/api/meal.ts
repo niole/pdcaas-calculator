@@ -1,11 +1,9 @@
 import { OpenAI } from "langchain/llms/openai";
 import { LLMChain } from "langchain/chains";
 import mealNamesPrompt from '../../utils/prompts/foodNamesPrompt';
-import { RecipeClient } from '../../utils/recipe-client/index';
+import { recipeClient } from './recipeClient';
 import dotenv from 'dotenv';
 dotenv.config();
-
-const recipeClient = new RecipeClient({ BASE: process.env.RECIPE_MATCH_API_SERVER_DOMAIN as string }).default;
 
 const model = new OpenAI({ 
   openAIApiKey: process.env.OPENAI_API_KEY, // In Node.js defaults to process.env.OPENAI_API_KEY
