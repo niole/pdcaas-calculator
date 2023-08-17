@@ -25,8 +25,6 @@ export default async function handler(req, res) {
     const recipeRecommendations = 
       await recipeClient.recipeMatchesMetadataRecipeMatchesPost({ recipe_names: mealNames });
 
-    console.log(recipeRecommendations)
-
     return res.status(200).json(recipeRecommendations);
   } catch (error) {
     console.error(error);

@@ -33,7 +33,7 @@ def clean_chunk(chunk):
 data = list (id, embedding)
 """
 def upload_chunks(data, namespace):
-    c_size = 1 # 500
+    c_size = 500
     for i in range(0, len(data), c_size):
         chunk = clean_chunk(data[i:i+c_size])
         if len(chunk) > 0:
@@ -146,22 +146,26 @@ def insert_food_embeddings_with_metadata(providedModel = model):
     upserts = list(zip([i[0] for i in id_metadata], embeddings, [i[1] for i in id_metadata]))
     upload_chunks(upserts, 'info')
 
+def get_metadata(r):
+    breakdown = r["nutrient_breakdown"]["protein_breakdown"]
+    result = copy.deepcopy(breakdown)
+
+    del result["ingredient_summaries"]
+
+    return result
+
+def create_recipe_upserts(recipes, providedModel = model):
+    titles = [r['title'] for r in recipes if r is not None]
+
+    metadata = [get_metadata(r) for r in recipes if len(r["ingredients"]) > 0]
+    return list(zip(titles, encode_str_list(titles, providedModel), metadata))
+
 def insert_recipes(recipe_paths, providedModel = model):
-    def get_metadata(r):
-        breakdown = r["nutrient_breakdown"]["protein_breakdown"]
-        result = copy.deepcopy(breakdown)
-
-        del result["ingredient_summaries"]
-
-        return result
 
     for path in recipe_paths:
         with open(path, 'r') as file:
             recipes = json.loads(file.read())
-            titles = [r['title'] for r in recipes if r is not None]
-
-            metadata = [get_metadata(r) for r in recipes if len(r["ingredients"]) > 0]
-            upserts = list(zip(titles, encode_str_list(titles, providedModel), metadata))
+            upserts = create_recipe_upserts(recipes, providedModel)
             upload_chunks(upserts, 'recipes')
 
 """

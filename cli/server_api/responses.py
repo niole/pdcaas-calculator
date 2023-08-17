@@ -39,10 +39,9 @@ def to_ingredient_response(i: dict) -> IngredientResponse:
         aas=[to_ingredient_aa_response(aa) for aa in i.aas]
     )
 
-def to_recipes_json(found_recipes: list[list[dict]]):
+def to_recipes_json(found_recipes: list[list[dict]]) -> list[dict]:
     response = []
     for recipes in found_recipes:
-        json_recipes = []
         for r in recipes:
             result = {
                 'id': r['id'],
@@ -50,10 +49,7 @@ def to_recipes_json(found_recipes: list[list[dict]]):
 
             result.update(r['metadata'])
 
-            json_recipes.append(result)
-
-        response.append(json_recipes)
-
+            response.append(result)
     return response
 
 class RecipeAminoAcidResponse(BaseModel):
@@ -105,11 +101,11 @@ A summary of a recipe and it's nutritional value
 """
 class RecipeNutritionSummary(BaseModel):
     id: str
-    total_complete_digestible_protein_g: float
-    total_protein_g: float
-    total_eaa_g: float
-    limiting_amino_acid_name: str
-    limiting_amino_acid_g: float
+    total_complete_digestible_protein_g: float | None
+    total_protein_g: float | None
+    total_eaa_g: float | None
+    limiting_amino_acid_name: str | None
+    limiting_amino_acid_g: float | None
     digestible_eaa_Tryptophan_g: float | None
     digestible_eaa_Threonine_g: float | None
     digestible_eaa_Isoleucine_g: float | None
@@ -122,4 +118,4 @@ class RecipeNutritionSummary(BaseModel):
 
 
 class RecipeMatchesResponse(BaseModel):
-    data: list[tuple[str, list[RecipeNutritionSummary]]]
+    data: list[RecipeNutritionSummary]

@@ -27,7 +27,7 @@ def recipe_matches_metadata(body: RecipeMatchesRequest):
     recipe_names = body.recipe_names
     found_recipes = [find_limit_vector_query(name, 1, 'recipes', providedModel=model, include_values=False) for name in recipe_names]
 
-    response =  list(zip(recipe_names, to_recipes_json(found_recipes)))
+    response =  to_recipes_json(found_recipes)
     return { 'data': response }
 
 """

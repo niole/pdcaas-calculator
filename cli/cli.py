@@ -10,14 +10,15 @@ import pinecone
 from multiprocessing import Pool
 import multiprocessing
 from pinecone_client import find_limit_vector_query, find_one_vector_query
-from get_file_name import get_file_name
+from create_food_info_vector_tables import create_recipe_upserts, upload_chunks
 from get_gram_weight import get_gram_weight
 from models.amino_acid import AminoAcid
-from models.ingredient import Ingredient
-from models.recipe import Recipe
+from models.ingredient import Ingredient as IngredientModel
+from models.recipe import Recipe as RecipeModel
 from sqlalchemy.orm import Session
+from sqlalchemy import delete
 from add_recipes_to_db import create_models
-from engine import engine
+from engine import *
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -98,7 +99,7 @@ def cli(recipe):
             protein_per_g = metadata['protein_per_100g']/100
             total_protein_ing_g = protein_per_g*gram_weight
 
-            ingredient = Ingredient(
+            ingredient = IngredientModel(
                 food_query,
                 food_match_name,
                 food_match_id,
@@ -112,7 +113,7 @@ def cli(recipe):
             ingredients.append(ingredient)
             break
 
-    scored_recipe = Recipe(
+    scored_recipe = RecipeModel(
         id=recipe["id"],
         title=recipe["title"],
         instructions=recipe["instructions"],
@@ -130,33 +131,47 @@ def cli(recipe):
 """
 Computes the protein breakdown for a recipe by finding a nutrient vector match
 """
-def add_protein_data(recipe, outpath):
+def add_protein_data(recipe):
     try:
         scored_recipe = cli(recipe).to_json()
-        recipe_model = create_models(scored_recipe)
-        with Session(engine) as session:
-            session.add_all(recipe_model)
-            session.commit()
+        recipe_models = create_models(scored_recipe)
+        vector_data = create_recipe_upserts([scored_recipe], model)
+        return (recipe_models, vector_data[0])
     except Exception as e:
         traceback.print_exc()
         logger.error(f'Something went wrong when getting protein data for {recipe["title"]}: {e}')
+        return None
 
 @click.command()
 @click.option('--inpaths', '-i', multiple=True, default=[BAREFOOT_CONTESSA_JSON, OH_SHE_GLOWS_JSON])
-@click.option('--outpath', '-o', type=str, default='open_ai/data')
-def main(inpaths, outpath):
+@click.option('--delete', '-d', is_flag=True, required=False, default=False, help="Whether or not to delete the recipe data in sql and vector db at the start")
+def main(inpaths, delete):
+    if delete:
+        # delete everything in recipes vector db and sql db
+        index = pinecone.Index("food")
+        index.delete(delete_all=True, namespace='recipe')
+
+        with Session(engine) as session:
+            session.query(Recipe).delete(synchronize_session=False)
+            session.query(RawIngredient).delete(synchronize_session=False)
+            session.query(Ingredient).delete(synchronize_session=False)
+            session.query(IngredientAminoAcid).delete(synchronize_session=False)
+            session.query(RecipeAminoAcid).delete(synchronize_session=False)
+            session.commit()
+
     for inpath in inpaths:
-        out_fn = get_file_name(inpath, '_w_nutrients')
-
-        if not os.path.isdir(outpath):
-            raise Exception(f'{outpath} is not a directory')
-
-        outpath_file = f'{outpath}/{out_fn}'
-
         with open(inpath, 'r') as file:
             recipes = json.loads(file.read())
             with Pool(5) as p:
-                p.map(partial(add_protein_data, outpath=outpath_file), recipes)
+                results = [r for r in p.map(partial(add_protein_data), recipes) if r is not None]
+
+                vector_data = [r[1] for r in results]
+                upload_chunks(vector_data, 'recipes')
+
+                with Session(engine) as session:
+                    for r in results:
+                        session.add_all(r[0])
+                    session.commit()
 
 if __name__ == "__main__":
     main()
