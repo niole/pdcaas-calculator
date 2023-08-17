@@ -5,9 +5,10 @@ from models.protein_breakdown import ProteinBreakdown
 the scored recipe
 """
 class Recipe:
-    def __init__(self, id, title, ingredients = [], raw_ingredients = []):
+    def __init__(self, id, title, instructions, ingredients = [], raw_ingredients = []):
         self.id = id
         self.title = title
+        self.instructions = instructions
         self.ingredients = ingredients
         self.raw_ingredients = raw_ingredients
         self.protein_breakdown = None
@@ -33,6 +34,7 @@ class Recipe:
         return {
             "title": self.title,
             "id": self.id,
+            "instructions": self.instructions,
             "nutrient_breakdown": { "protein_breakdown": self.protein_breakdown.to_json() },
             "ingredients": [i.to_json() for i in self.ingredients],
             "raw_ingredients": self.raw_ingredients,

@@ -15,6 +15,10 @@ from get_gram_weight import get_gram_weight
 from models.amino_acid import AminoAcid
 from models.ingredient import Ingredient
 from models.recipe import Recipe
+from sqlalchemy.orm import Session
+from add_recipes_to_db import create_models
+from engine import engine
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -108,7 +112,13 @@ def cli(recipe):
             ingredients.append(ingredient)
             break
 
-    scored_recipe = Recipe(recipe["id"], recipe["title"], ingredients, recipe["ingredients"])
+    scored_recipe = Recipe(
+        id=recipe["id"],
+        title=recipe["title"],
+        instructions=recipe["instructions"],
+        ingredients=ingredients,
+        raw_ingredients=recipe["ingredients"]
+    )
 
     if len(ingredients) < len(recipe['ingredients_w_units']) or not scored_recipe.is_scored():
         logger.warning(f"Failed to score all ingredients in recipe {recipe['title']}")
@@ -122,12 +132,11 @@ Computes the protein breakdown for a recipe by finding a nutrient vector match
 """
 def add_protein_data(recipe, outpath):
     try:
-        scored_recipe = cli(recipe)
-
-        with open(outpath, 'a') as outfile:
-            # TODO instead of writing the scored recipe to json, maybe save it to a database?
-            outfile.write(json.dumps(scored_recipe.to_json()))
-
+        scored_recipe = cli(recipe).to_json()
+        recipe_model = create_models(scored_recipe)
+        with Session(engine) as session:
+            session.add_all(recipe_model)
+            session.commit()
     except Exception as e:
         traceback.print_exc()
         logger.error(f'Something went wrong when getting protein data for {recipe["title"]}: {e}')

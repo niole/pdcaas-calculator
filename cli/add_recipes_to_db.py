@@ -3,7 +3,7 @@ this adds the recipes in the json files that are output by the cli.py to the sql
 """
 
 from sqlalchemy.orm import Session
-from engine import engine, Recipe, IngredientAminoAcid, Ingredient, RecipeAminoAcid
+from engine import *
 import click
 import json
 
@@ -48,18 +48,24 @@ def create_ingredient_model(ingredient, ingredient_summary):
         aas=[create_ingredient_aa_model(aa) for aa in ingredient_summary["aas"]]
     )
 
+def to_raw_ingredient_model(ingredient_summary):
+    return RawIngredient(description=ingredient_summary)
 
 def create_models(recipe):
     nutrient_summary = recipe["nutrient_breakdown"]["protein_breakdown"]
     ingredients = [create_ingredient_model(i, i_summary) for (i_summary, i) in zip(nutrient_summary["ingredient_summaries"], recipe["ingredients"])]
     aas = create_recipe_aa_models(nutrient_summary)
+    raw_ingredients = [to_raw_ingredient_model(ri) for ri in recipe["raw_ingredients"]]
+
     rmodel = Recipe(
          title=recipe['title'],
+         instructions=recipe['instructions'],
          total_protein_g=nutrient_summary["total_protein_g"],
          total_eaa_g=nutrient_summary["total_eaa_g"],
          total_complete_digestible_protein_g=nutrient_summary["total_complete_digestible_protein_g"],
          limiting_aa=nutrient_summary["limiting_amino_acid_name"],
          ingredients=ingredients,
+         raw_ingredients=raw_ingredients,
          aas=aas,
      )
 

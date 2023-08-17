@@ -17,6 +17,7 @@ class Recipe(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(60))
+    instructions: Mapped[str] = mapped_column(String(1500))
     total_protein_g: Mapped[Optional[float]] = mapped_column()
     total_eaa_g: Mapped[Optional[float]] = mapped_column()
     total_complete_digestible_protein_g: Mapped[Optional[float]] = mapped_column()
@@ -24,9 +25,18 @@ class Recipe(Base):
     ingredients: Mapped[List["Ingredient"]] = relationship(
         back_populates="recipe", cascade="all, delete-orphan"
     )
+    raw_ingredients: Mapped[List["RawIngredient"]] = relationship(back_populates="recipe", cascade="all, delete-orphan")
     aas: Mapped[List["RecipeAminoAcid"]] = relationship(
         back_populates="recipe", cascade="all, delete-orphan"
     )
+
+class RawIngredient(Base):
+    __tablename__ = "raw_ingredient"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    description: Mapped[str] = mapped_column(String(120))
+    recipe_id: Mapped[str] = mapped_column(ForeignKey("recipe.id"))
+    recipe: Mapped["Recipe"] = relationship(back_populates="raw_ingredients")
 
 class Ingredient(Base):
     __tablename__ = "ingredient"

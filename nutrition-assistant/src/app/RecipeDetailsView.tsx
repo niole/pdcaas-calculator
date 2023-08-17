@@ -24,7 +24,7 @@ export function RecipeDetailsView({ recipe, onClose }: RecipeDetailsViewProps) {
           </p>
           <p>
             <div className="text-xl">instructions</div>
-            <div>...</div>
+            <div>{recipe.instructions}</div>
           </p>
         </div>
         <div>

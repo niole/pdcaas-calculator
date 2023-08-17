@@ -77,6 +77,7 @@ class RecipeResponse(BaseModel):
     total_eaa_g: Optional[float]
     total_complete_digestible_protein_g: Optional[float]
     limiting_aa: Optional[str]
+    instructions: str
     ingredients: List[IngredientResponse]
     aas: List[RecipeAminoAcidResponse]
 
@@ -88,6 +89,7 @@ def to_recipe_response(r: dict) -> RecipeResponse:
         total_eaa_g=r.total_eaa_g,
         total_complete_digestible_protein_g=r.total_complete_digestible_protein_g,
         limiting_aa=r.limiting_aa,
+        instructions=r.instructions,
         ingredients=[to_ingredient_response(i) for i in r.ingredients],
         aas=[to_recipe_aa_response(aa) for aa in r.aas]
     )
