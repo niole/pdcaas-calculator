@@ -41,15 +41,18 @@ def to_ingredient_response(i: dict) -> IngredientResponse:
 
 def to_recipes_json(found_recipes: list[list[dict]]) -> list[dict]:
     response = []
+    ids = []
     for recipes in found_recipes:
         for r in recipes:
-            result = {
-                'id': r['id'],
-            }
+            if r['score'] >= 0.7 and r['id'] not in ids:
+                result = {
+                    'id': r['id'],
+                }
 
-            result.update(r['metadata'])
+                result.update(r['metadata'])
 
-            response.append(result)
+                response.append(result)
+                ids.append(r['id'])
     return response
 
 class RecipeAminoAcidResponse(BaseModel):
