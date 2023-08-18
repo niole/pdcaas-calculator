@@ -35,10 +35,11 @@ gets the recipes according to a filter
 """
 @app.post("/recipe/list", response_model=RecipeListResponse)
 def recipe_list(body: GetRecipesRequest):
-    recipe_names = body.recipe_names
+    ids = body.ids
 
     with Session(engine) as session:
-        stmt = select(Recipe).where(Recipe.title.in_(recipe_names))
+        stmt = select(Recipe).where(Recipe.id.in_(ids))
         result = session.execute(stmt)
         data = [to_recipe_response(o) for o in result.scalars()]
         return { 'data': data }
+    return { 'data': [] }

@@ -155,10 +155,11 @@ def get_metadata(r):
     return result
 
 def create_recipe_upserts(recipes, providedModel = model):
-    titles = [r['title'] for r in recipes if r is not None]
+    ids = [r['id'] for r in recipes if r is not None]
+    titles_and_content = [f"{r['title']} {','.join(r['raw_ingredients'])}" for r in recipes if r is not None]
 
     metadata = [get_metadata(r) for r in recipes if len(r["ingredients"]) > 0]
-    return list(zip(titles, encode_str_list(titles, providedModel), metadata))
+    return list(zip(ids, encode_str_list(titles_and_content, providedModel), metadata))
 
 def insert_recipes(recipe_paths, providedModel = model):
 

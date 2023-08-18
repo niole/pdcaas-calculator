@@ -9,7 +9,7 @@ import {MealPreferenceUI, defaultPreferenceValue} from './MealPreferenceUI';
 
 export default function Home() {
   const [loading, setLoading] = React.useState<boolean>(false);
-  const [selectedRecipeTitle, setSelectedRecipeTitle] = React.useState<string | undefined>();
+  const [selectedRecipeId, setSelectedRecipeId] = React.useState<string | undefined>();
   const [selectedRecipe, setSelectedRecipe] = React.useState<RecipeResponse | undefined>();
   const [mealPreference, setMealPreference] = React.useState<string>(defaultPreferenceValue);
   const [mealTime, setMealTime] = React.useState<string | undefined>();
@@ -17,10 +17,10 @@ export default function Home() {
   const [recipeRecommendations, setRecipeRecommendations] = React.useState<RecipeNutritionSummary[]>([]);
 
   React.useEffect(() => {
-    if (selectedRecipeTitle) {
+    if (selectedRecipeId) {
       fetch(
         '/api/recipeList', 
-        { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({recipe_names: [selectedRecipeTitle]})}
+        { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [selectedRecipeId]})}
       )
       .then(x => x.json())
       .then(({ data }: RecipeListResponse) => {
@@ -33,7 +33,7 @@ export default function Home() {
     } else {
       setSelectedRecipe(undefined);
     }
-  }, [selectedRecipeTitle]);
+  }, [selectedRecipeId]);
 
   const handleSubmit = async () => {
     const fields = [["meal preference", mealPreference], ["meal time", mealTime]];
@@ -72,8 +72,8 @@ export default function Home() {
             {recipeRecommendations.map((recipe: RecipeNutritionSummary) => (
               <RecipeNutritionalSummaryCard
                 key={recipe.id}
-                onClick={() => setSelectedRecipeTitle(recipe.id)}
-                recipeTitle={recipe.id}
+                onClick={() => setSelectedRecipeId(recipe.id)}
+                recipeTitle={recipe.title}
                 gramsDigestibleProtein={recipe.total_complete_digestible_protein_g}
                 gramsProtein={recipe.total_protein_g}
                 digestible_eaa_Histidine_g={recipe.digestible_eaa_Histidine_g}

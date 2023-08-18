@@ -10,4 +10,4 @@ class RecipeMatchesRequest(BaseModel):
 specifies recipe names to find exact matches for 
 """
 class GetRecipesRequest(BaseModel):
-    recipe_names: list[str]
+    ids: list[int]

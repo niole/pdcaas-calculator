@@ -1,5 +1,8 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from engine import *
+from sqlalchemy import select
+from sqlalchemy.orm import Session, load_only
 
 class IngredientAminoAcidResponse(BaseModel):
     id: int
@@ -40,20 +43,39 @@ def to_ingredient_response(i: dict) -> IngredientResponse:
     )
 
 def to_recipes_json(found_recipes: list[list[dict]]) -> list[dict]:
-    response = []
+    def to_summary(r):
+        return {
+            'id': r.id,
+            'title': r.title,
+            'total_complete_digestible_protein_g': r.total_complete_digestible_protein_g,
+            'total_protein_g': r.total_protein_g,
+            'total_eaa_g': r.total_eaa_g,
+            'limiting_amino_acid_name': r.limiting_aa,
+            'limiting_amino_acid_g': None,
+            'digestible_eaa_Tryptophan_g': None,
+            'digestible_eaa_Threonine_g': None,
+            'digestible_eaa_Isoleucine_g': None,
+            'digestible_eaa_Leucine_g': None,
+            'digestible_eaa_Lysine_g': None,
+            'digestible_eaa_Methionine_g': None,
+            'digestible_eaa_Phenylalanine_g': None,
+            'digestible_eaa_Valine_g': None,
+            'digestible_eaa_Histidine_g': None
+        }
+
     ids = []
     for recipes in found_recipes:
         for r in recipes:
             if r['score'] >= 0.7 and r['id'] not in ids:
-                result = {
-                    'id': r['id'],
-                }
+                ids.append(int(r['id']))
 
-                result.update(r['metadata'])
+    with Session(engine) as session:
+        stmt = session.query(Recipe).where(Recipe.id.in_(ids)).where(Recipe.fraction_scored >= 0.75)
+        result = session.execute(stmt)
+        recipes = [to_summary(r) for r in result.scalars()]
+        return recipes
 
-                response.append(result)
-                ids.append(r['id'])
-    return response
+    return []
 
 class RecipeAminoAcidResponse(BaseModel):
     id: int
@@ -103,7 +125,8 @@ class RecipeListResponse(BaseModel):
 A summary of a recipe and it's nutritional value
 """
 class RecipeNutritionSummary(BaseModel):
-    id: str
+    id: int
+    title: str
     total_complete_digestible_protein_g: float | None
     total_protein_g: float | None
     total_eaa_g: float | None

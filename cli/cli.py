@@ -135,8 +135,17 @@ def add_protein_data(recipe):
     try:
         scored_recipe = cli(recipe).to_json()
         recipe_models = create_models(scored_recipe)
-        vector_data = create_recipe_upserts([scored_recipe], model)
-        return (recipe_models, vector_data[0])
+        recipe_model = recipe_models[0]
+
+        with Session(engine) as session:
+            session.add_all([recipe_model])
+            session.commit()
+
+            scored_recipe['id'] = str(recipe_model.id)
+
+            vector_data = create_recipe_upserts([scored_recipe], model)
+            return (recipe_models, vector_data[0])
+
     except Exception as e:
         traceback.print_exc()
         logger.error(f'Something went wrong when getting protein data for {recipe["title"]}: {e}')
@@ -147,9 +156,10 @@ def add_protein_data(recipe):
 @click.option('--delete', '-d', is_flag=True, required=False, default=False, help="Whether or not to delete the recipe data in sql and vector db at the start")
 def main(inpaths, delete):
     if delete:
+        print("DELETING")
         # delete everything in recipes vector db and sql db
         index = pinecone.Index("food")
-        index.delete(delete_all=True, namespace='recipe')
+        index.delete(delete_all=True, namespace='recipes')
 
         with Session(engine) as session:
             session.query(Recipe).delete(synchronize_session=False)
@@ -165,13 +175,9 @@ def main(inpaths, delete):
             with Pool(5) as p:
                 results = [r for r in p.map(partial(add_protein_data), recipes) if r is not None]
 
+                # TODO update the vector data to put ids in the vector id
                 vector_data = [r[1] for r in results]
                 upload_chunks(vector_data, 'recipes')
-
-                with Session(engine) as session:
-                    for r in results:
-                        session.add_all(r[0])
-                    session.commit()
 
 if __name__ == "__main__":
     main()
