@@ -45,6 +45,7 @@ def create_ingredient_model(ingredient, ingredient_summary):
         digestible_protein_g=ingredient_summary["total_achievable_protein_food_g"],
         total_protein_g=ingredient_summary["total_protein_g"],
         td=ingredient_summary["td"],
+        is_scored=ingredient_summary["is_scored"],
         aas=[create_ingredient_aa_model(aa) for aa in ingredient_summary["aas"]]
     )
 
@@ -59,6 +60,7 @@ def create_models(recipe):
 
     rmodel = Recipe(
          title=recipe['title'],
+         fraction_scored=recipe['fraction_scored'],
          instructions=recipe['instructions'],
          total_protein_g=nutrient_summary["total_protein_g"],
          total_eaa_g=nutrient_summary["total_eaa_g"],

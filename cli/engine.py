@@ -17,6 +17,7 @@ class Recipe(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(60))
+    fraction_scored: Mapped[Optional[float]] = mapped_column()
     instructions: Mapped[str] = mapped_column(String(1500))
     total_protein_g: Mapped[Optional[float]] = mapped_column()
     total_eaa_g: Mapped[Optional[float]] = mapped_column()
@@ -50,6 +51,7 @@ class Ingredient(Base):
     digestible_protein_g: Mapped[Optional[float]] = mapped_column()
     total_protein_g: Mapped[Optional[float]] = mapped_column()
     td: Mapped[Optional[float]] = mapped_column()
+    is_scored: Mapped[bool] = mapped_column()
     aas: Mapped[List["IngredientAminoAcid"]] = relationship(
         back_populates="ingredient", cascade="all, delete-orphan"
     )

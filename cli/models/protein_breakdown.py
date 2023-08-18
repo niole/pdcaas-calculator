@@ -100,6 +100,7 @@ class IngredientProteinSummary:
         return {
             "name": self.ingredient_name,
             "food_match": self.food_match,
+            "is_scored": self.is_scored(),
             "limiting_aa_details": limiting_aa_details,
             "total_protein_g": self.total_protein_g,
             "total_achievable_protein_food_g": self.total_achievable_protein_food_g,
