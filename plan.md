@@ -67,3 +67,6 @@ in order to make sure that we can score things properly, we need to fine-tune th
 - matches unhealthy things when user asks for health things
 - matches non-vegan things when user asks for vegan things
 - need instructions on the recipe and should include the raw ingredient list in sqlite
+- need to differentiate between vegan and non-vegan better
+- need to label whether something belongs to a certain kind of diet, whether it's good for weight loss, whether it's good for bulking, is low sodium
+- need to investigate what recipe ingredients have bad food matches and improve the food matching
